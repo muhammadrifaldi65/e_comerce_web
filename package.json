@@ -1,0 +1,20 @@
+{
+  "name": "falstore-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend e-commerce Falstore dengan autentikasi, produk, upload, dan SQLite.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "sql.js": "^1.13.0"
+  }
+}
