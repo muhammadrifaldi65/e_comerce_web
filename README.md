@@ -10,11 +10,6 @@ Aplikasi web e-commerce sederhana untuk penjualan alat elektronik. Proyek ini di
 | 2   | _Muhammad Ivanda Stevhany_ | _2410010190_ | _5 A_ |
 | 3   | _Fachri Albar_             | _2410010211_ | _5 A_ |
 
-<<<<<<< HEAD
-> Ganti bagian bertanda _miring_ sesuai identitas tugas sebelum dikumpulkan.
-=======
-
->>>>>>> beaac2ee411881f416df194c8553018e0c6734bb
 
 ## Deskripsi Proyek
 
@@ -42,7 +37,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 
 - Melihat katalog produk elektronik.
 - Mencari produk berdasarkan nama atau deskripsi.
-- Menjalankan pencarian otomatis dengan debounce agar request tidak dikirim pada setiap ketikan.
+- Menunggu 350 ms setelah input pencarian atau kategori berubah sebelum membuka hasil pencarian, menggunakan debounce agar navigasi tidak berjalan pada setiap ketikan.
 - Memfilter produk berdasarkan kategori.
 - Melihat detail produk dan produk terkait.
 - Menambahkan produk ke keranjang belanja.
