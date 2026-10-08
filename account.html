@@ -1,23 +1,120 @@
 <!doctype html>
 <html lang="id">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Akun Saya | Falstore</title>
-  <link rel="stylesheet" href="css/bootstrap.min.css">
-  <link rel="stylesheet" href="css/font-awesome.min.css">
-  <link rel="stylesheet" href="css/style.css">
-  <style>.falstore-auth-notice{padding:12px;background:#fee2e2;color:#991b1b}.auth-card{padding:24px;background:#f7f7f7;margin-bottom:24px}.auth-card .input{margin-bottom:12px}.auth-card .primary-btn{border:0}</style>
-</head>
-<body>
-  <header><div id="header"><div class="container"><div class="header-logo"><a class="logo" href="index.html"><img src="img/logo.png" alt="Falstore"></a></div></div></div></header>
-  <nav id="navigation"><div class="container"><ul class="main-nav nav navbar-nav"><li><a href="index.html">Beranda</a></li><li><a href="store.html">Belanja</a></li><li><a href="wishlist.html">Daftar Keinginan</a></li><li><a href="cart.html">Keranjang</a></li><li class="active"><a href="account.html">Akun Saya</a></li><li><a href="contact.html">Kontak</a></li></ul></div></nav>
-  <main class="section"><div class="container"><div class="section-title"><h3 class="title">Akun Falstore</h3></div><div class="row">
-    <div class="col-md-6"><div class="auth-card"><h3 class="title">Masuk</h3><form id="login-form"><input class="input" type="email" name="email" placeholder="Email Anda" required><input class="input" type="password" name="password" placeholder="Kata sandi" required><button class="primary-btn" type="submit">Masuk</button></form></div></div>
-    <div class="col-md-6"><div class="auth-card"><h3 class="title">Buat akun customer</h3><form id="register-form"><input class="input" type="text" name="name" placeholder="Nama lengkap" required><input class="input" type="email" name="email" placeholder="Email Anda" required><input class="input" type="password" name="password" placeholder="Kata sandi minimal 8 karakter" minlength="8" required><button class="primary-btn" type="submit">Daftar</button></form></div></div>
-    <div class="col-md-12"><div id="account-profile" class="auth-card"></div></div>
-  </div></div></main>
-  <footer id="footer"><div class="section"><div class="container"><h3 class="footer-title">Falstore</h3><p>Email: <a href="mailto:info@falstore.com">info@falstore.com</a></p></div></div></footer>
-  <script src="js/auth.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Akun Saya | Falstore</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/font-awesome.min.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+      .falstore-auth-notice {
+        padding: 12px;
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .auth-card {
+        padding: 24px;
+        background: #f7f7f7;
+        margin-bottom: 24px;
+      }
+      .auth-card .input {
+        margin-bottom: 12px;
+      }
+      .auth-card .primary-btn {
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <div class="container">
+          <div class="header-logo">
+            <a class="logo" href="index.html"
+              ><img src="img/logo.png" alt="Falstore"
+            /></a>
+          </div>
+        </div>
+      </div>
+    </header>
+    <nav id="navigation">
+      <div class="container">
+        <ul class="main-nav nav navbar-nav">
+          <li><a href="index.html">Beranda</a></li>
+          <li><a href="store.html">Belanja</a></li>
+          <li><a href="wishlist.html">Daftar Keinginan</a></li>
+          <li><a href="cart.html">Keranjang</a></li>
+          <li class="active"><a href="account.html">Akun Saya</a></li>
+          <li><a href="contact.html">Kontak</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main class="section">
+      <div class="container">
+        <div class="section-title"><h3 class="title">Akun Falstore</h3></div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="auth-card">
+              <h3 class="title">Masuk</h3>
+              <form id="login-form">
+                <input
+                  class="input"
+                  type="email"
+                  name="email"
+                  placeholder="Email Anda"
+                  required
+                /><input
+                  class="input"
+                  type="password"
+                  name="password"
+                  placeholder="Kata sandi"
+                  required
+                /><button class="primary-btn" type="submit">Masuk</button>
+              </form>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="auth-card">
+              <h3 class="title">Buat akun customer</h3>
+              <form id="register-form">
+                <input
+                  class="input"
+                  type="text"
+                  name="name"
+                  placeholder="Nama lengkap"
+                  required
+                /><input
+                  class="input"
+                  type="email"
+                  name="email"
+                  placeholder="Email Anda"
+                  required
+                /><input
+                  class="input"
+                  type="password"
+                  name="password"
+                  placeholder="Kata sandi minimal 8 karakter"
+                  minlength="8"
+                  required
+                /><button class="primary-btn" type="submit">Daftar</button>
+              </form>
+            </div>
+          </div>
+          <div class="col-md-12">
+            <div id="account-profile" class="auth-card"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer id="footer">
+      <div class="section">
+        <div class="container">
+          <h3 class="footer-title">Falstore</h3>
+          <p>Email: <a href="mailto:info@falstore.com">info@falstore.com</a></p>
+        </div>
+      </div>
+    </footer>
+    <script src="js/auth.js"></script>
+  </body>
 </html>
