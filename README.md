@@ -37,7 +37,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 
 - Melihat katalog produk elektronik.
 - Mencari produk berdasarkan nama atau deskripsi.
-- Menunggu 350 ms setelah input pencarian atau kategori berubah sebelum membuka hasil pencarian, menggunakan debounce agar navigasi tidak berjalan pada setiap ketikan.
+- Menunggu 350 ms setelah tombol pencarian ditekan atau Enter digunakan, menggunakan debounce untuk mencegah navigasi ganda.
 - Memfilter produk berdasarkan kategori.
 - Melihat detail produk dan produk terkait.
 - Menambahkan produk ke keranjang belanja.

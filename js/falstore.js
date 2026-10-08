@@ -178,16 +178,12 @@
   };
   const wireSearchForms = () => {
     document.querySelectorAll(".header-search form").forEach((form) => {
-      const input = form.querySelector("input");
-      const select = form.querySelector("select");
       const debouncedSearch = debounce(() => navigateToSearch(form));
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
-        navigateToSearch(form);
+        debouncedSearch();
       });
-      input?.addEventListener("input", debouncedSearch);
-      select?.addEventListener("change", debouncedSearch);
     });
   };
   const wireForms = () => {
