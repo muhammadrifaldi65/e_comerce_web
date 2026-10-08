@@ -10,7 +10,11 @@ Aplikasi web e-commerce sederhana untuk penjualan alat elektronik. Proyek ini di
 | 2   | _Muhammad Ivanda Stevhany_ | _2410010190_ | _5 A_ |
 | 3   | _Fachri Albar_             | _2410010211_ | _5 A_ |
 
+<<<<<<< HEAD
 > Ganti bagian bertanda _miring_ sesuai identitas tugas sebelum dikumpulkan.
+=======
+
+>>>>>>> beaac2ee411881f416df194c8553018e0c6734bb
 
 ## Deskripsi Proyek
 
