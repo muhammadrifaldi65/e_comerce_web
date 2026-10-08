@@ -236,6 +236,7 @@ const upload = multer({
     ),
 });
 
+<<<<<<< HEAD
 function publicUser(user) {
   return {
     id: user.id,
@@ -243,6 +244,23 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     createdAt: user.created_at,
+=======
+// ivanda
+
+function publicUser(user) { return { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.created_at }; }
+function publicProduct(product) { const { sales_count, ...rest } = product; return { ...rest, salesCount: Number(sales_count || 0), isFeatured: Boolean(product.is_featured), createdAt: product.created_at, updatedAt: product.updated_at }; }
+function signUser(user) { return jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' }); }
+function auth(required = true) {
+  return (req, res, next) => {
+    const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!token) return required ? res.status(401).json({ error: 'Autentikasi diperlukan.' }) : next();
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      const user = db.prepare('SELECT id, name, email, role, created_at FROM users WHERE id = ?').get(payload.sub);
+      if (!user) return res.status(401).json({ error: 'Sesi tidak valid.' });
+      req.user = user; next();
+    } catch { return res.status(401).json({ error: 'Token tidak valid atau sudah kedaluwarsa.' }); }
+>>>>>>> 06dbf66d2751ecfb311ed7fa4dd3785c9f616699
   };
 }
 function publicProduct(product) {
