@@ -1,0 +1,42 @@
+# Dependency hasil instalasi npm
+node_modules/
+
+# Environment variable dan secret lokal
+.env
+.env.*
+!.env.example
+
+# Database dan file data runtime lokal
+/data/
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# File upload yang dibuat saat aplikasi berjalan
+/uploads/
+
+# Log dan output debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Hasil build dan coverage
+coverage/
+.nyc_output/
+dist/
+build/
+
+# File sementara editor dan sistem operasi
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+*.swp
+
+# Konfigurasi editor lokal
+.vscode/
+.idea/

@@ -157,19 +157,41 @@
         }),
     );
   };
-  const wireForms = () => {
-    document.querySelectorAll(".header-search form").forEach((form) =>
+  const debounce = (callback, delay = 350) => {
+    let timeoutId;
+
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => callback(...args), delay);
+    };
+  };
+  const navigateToSearch = (form) => {
+    const input = form.querySelector("input");
+    const category = form.querySelector("select")?.value || "";
+    const params = new URLSearchParams();
+
+    if (input?.value.trim()) params.set("q", input.value.trim());
+    if (category) params.set("kategori", category);
+
+    location.href =
+      "store.html" + (params.toString() ? "?" + params.toString() : "");
+  };
+  const wireSearchForms = () => {
+    document.querySelectorAll(".header-search form").forEach((form) => {
+      const input = form.querySelector("input");
+      const select = form.querySelector("select");
+      const debouncedSearch = debounce(() => navigateToSearch(form));
+
       form.addEventListener("submit", (event) => {
         event.preventDefault();
-        const input = form.querySelector("input");
-        const category = form.querySelector("select")?.value || "";
-        const params = new URLSearchParams();
-        if (input?.value.trim()) params.set("q", input.value.trim());
-        if (category) params.set("kategori", category);
-        location.href =
-          "store.html" + (params.toString() ? "?" + params.toString() : "");
-      }),
-    );
+        navigateToSearch(form);
+      });
+      input?.addEventListener("input", debouncedSearch);
+      select?.addEventListener("change", debouncedSearch);
+    });
+  };
+  const wireForms = () => {
+    wireSearchForms();
     document.querySelectorAll(".newsletter form").forEach((form) =>
       form.addEventListener("submit", (event) => {
         event.preventDefault();

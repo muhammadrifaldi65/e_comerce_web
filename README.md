@@ -4,13 +4,13 @@ Aplikasi web e-commerce sederhana untuk penjualan alat elektronik. Proyek ini di
 
 ## Identitas Mahasiswa
 
-| No. | Nama Mahasiswa | NIM | Kelas |
-| --- | --- | --- | --- |
-| 1 | *Muhammad Rifaldi* | *2410010153* | *5 A* |
-| 2 | *Muhammad Ivanda Stevhany* | *2410010190* | *5 A* |
-| 3 | *Fachri Albar* | *2410010211* | *5 A* |
+| No. | Nama Mahasiswa             | NIM          | Kelas |
+| --- | -------------------------- | ------------ | ----- |
+| 1   | _Muhammad Rifaldi_         | _2410010153_ | _5 A_ |
+| 2   | _Muhammad Ivanda Stevhany_ | _2410010190_ | _5 A_ |
+| 3   | _Fachri Albar_             | _2410010211_ | _5 A_ |
 
-> Ganti bagian bertanda *miring* sesuai identitas tugas sebelum dikumpulkan.
+> Ganti bagian bertanda _miring_ sesuai identitas tugas sebelum dikumpulkan.
 
 ## Deskripsi Proyek
 
@@ -38,6 +38,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 
 - Melihat katalog produk elektronik.
 - Mencari produk berdasarkan nama atau deskripsi.
+- Menjalankan pencarian otomatis dengan debounce agar request tidak dikirim pada setiap ketikan.
 - Memfilter produk berdasarkan kategori.
 - Melihat detail produk dan produk terkait.
 - Menambahkan produk ke keranjang belanja.
@@ -62,16 +63,16 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 
 ## Teknologi yang Digunakan
 
-| Bagian | Teknologi |
-| --- | --- |
-| Runtime | Node.js 20 atau lebih baru |
-| Backend | Express 5 |
-| Database | SQLite melalui `sql.js` |
-| Autentikasi | JSON Web Token (`jsonwebtoken`) |
-| Hash kata sandi | `bcryptjs` |
-| Upload file | `multer` |
-| Frontend | HTML5, CSS3, JavaScript browser |
-| UI pendukung | Bootstrap, Font Awesome, jQuery, Slick Carousel, noUiSlider |
+| Bagian          | Teknologi                                                   |
+| --------------- | ----------------------------------------------------------- |
+| Runtime         | Node.js 20 atau lebih baru                                  |
+| Backend         | Express 5                                                   |
+| Database        | SQLite melalui `sql.js`                                     |
+| Autentikasi     | JSON Web Token (`jsonwebtoken`)                             |
+| Hash kata sandi | `bcryptjs`                                                  |
+| Upload file     | `multer`                                                    |
+| Frontend        | HTML5, CSS3, JavaScript browser                             |
+| UI pendukung    | Bootstrap, Font Awesome, jQuery, Slick Carousel, noUiSlider |
 
 ## Persyaratan Sistem
 
@@ -120,57 +121,55 @@ Database akan dibuat atau digunakan dari file `data/falstore.sqlite`. Folder `up
 
 ## Perintah yang Tersedia
 
-| Perintah | Fungsi |
-| --- | --- |
-| `npm start` | Menjalankan server dalam mode normal |
-| `npm run dev` | Menjalankan server dengan Node.js watch mode |
-| `npm run smoke` | Menjalankan pengujian alur utama API |
+| Perintah        | Fungsi                                       |
+| --------------- | -------------------------------------------- |
+| `npm start`     | Menjalankan server dalam mode normal         |
+| `npm run dev`   | Menjalankan server dengan Node.js watch mode |
+| `npm run smoke` | Menjalankan pengujian alur utama API         |
 
 ## Konfigurasi Environment
 
-Aplikasi memiliki nilai bawaan agar dapat langsung dijalankan untuk kebutuhan tugas kuliah. Untuk penggunaan yang lebih aman, gunakan environment variable berikut:
+Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke repository. Server memuat file tersebut menggunakan `dotenv`.
 
-| Variable | Default | Keterangan |
-| --- | --- | --- |
-| `PORT` | `3000` | Port HTTP server |
-| `JWT_SECRET` | `falstore-development-secret-change-me` | Secret untuk menandatangani token JWT |
-| `ADMIN_EMAIL` | `admin@falstore.local` | Email akun admin awal |
-| `ADMIN_PASSWORD` | `admin12345` | Kata sandi akun admin awal |
+1. Salin template environment:
 
-Contoh menjalankan server dengan konfigurasi sendiri:
+   ```bash
+   cp .env.example .env
+   ```
 
-### Windows PowerShell
+   Pada Windows PowerShell, gunakan:
 
-```powershell
-$env:PORT="3000"
-$env:JWT_SECRET="ganti-dengan-secret-yang-kuat"
-$env:ADMIN_EMAIL="admin@example.com"
-$env:ADMIN_PASSWORD="kata-sandi-admin-yang-kuat"
-npm start
-```
+   ```powershell
+   Copy-Item .env.example .env
+   ```
 
-### Linux atau macOS
+2. Buka file `.env`, lalu isi nilai konfigurasi:
 
-```bash
-PORT=3000 \
-JWT_SECRET="ganti-dengan-secret-yang-kuat" \
-ADMIN_EMAIL="admin@example.com" \
-ADMIN_PASSWORD="kata-sandi-admin-yang-kuat" \
-npm start
-```
+   | Variable         | Contoh                     | Keterangan                            |
+   | ---------------- | -------------------------- | ------------------------------------- |
+   | `PORT`           | `3000`                     | Port HTTP server                      |
+   | `JWT_SECRET`     | `secret-jwt-yang-kuat`     | Secret untuk menandatangani token JWT |
+   | `ADMIN_EMAIL`    | `admin@example.com`        | Email akun admin awal                 |
+   | `ADMIN_PASSWORD` | `password-admin-yang-kuat` | Kata sandi akun admin awal            |
 
-> Jangan menggunakan secret dan kredensial bawaan pada deployment publik.
+3. Jalankan server:
+
+   ```bash
+   npm start
+   ```
+
+File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
 
 ## Akun Demo
 
-Akun admin dibuat otomatis saat server pertama kali dijalankan:
+Pada konfigurasi lokal contoh, akun admin dibuat otomatis saat server pertama kali dijalankan:
 
 ```text
 Email    : admin@falstore.local
 Password : admin12345
 ```
 
-Kredensial tersebut hanya ditujukan untuk demonstrasi lokal. Untuk pengumpulan tugas atau deployment, kredensial dapat diubah melalui environment variable.
+Kredensial tersebut hanya ditujukan untuk demonstrasi lokal. Gunakan nilai yang berbeda pada `.env` untuk pengumpulan tugas atau deployment.
 
 Pelanggan baru dapat membuat akun melalui halaman `account.html`.
 
@@ -189,6 +188,7 @@ Pelanggan baru dapat membuat akun melalui halaman `account.html`.
 ├── wishlist.html             # Daftar keinginan
 ├── server.js                 # Server Express, database, auth, dan API
 ├── package.json               # Konfigurasi proyek dan dependency
+├── .env.example              # Template konfigurasi environment
 ├── data/
 │   └── falstore.sqlite        # Database SQLite aplikasi
 ├── uploads/                  # Gambar hasil upload admin
@@ -229,15 +229,15 @@ Base URL API: `http://localhost:3000/api`
 
 ### Endpoint umum
 
-| Method | Endpoint | Auth | Keterangan |
-| --- | --- | --- | --- |
-| `GET` | `/health` | Tidak | Memeriksa status API |
-| `POST` | `/auth/register` | Tidak | Membuat akun pelanggan |
-| `POST` | `/auth/login` | Tidak | Login pelanggan atau admin |
-| `GET` | `/auth/me` | Bearer token | Mengambil data pengguna aktif |
-| `GET` | `/products` | Tidak | Mengambil katalog produk |
-| `GET` | `/products/:idOrSlug` | Tidak | Mengambil detail produk |
-| `POST` | `/orders` | Bearer token | Membuat pesanan pelanggan |
+| Method | Endpoint              | Auth         | Keterangan                    |
+| ------ | --------------------- | ------------ | ----------------------------- |
+| `GET`  | `/health`             | Tidak        | Memeriksa status API          |
+| `POST` | `/auth/register`      | Tidak        | Membuat akun pelanggan        |
+| `POST` | `/auth/login`         | Tidak        | Login pelanggan atau admin    |
+| `GET`  | `/auth/me`            | Bearer token | Mengambil data pengguna aktif |
+| `GET`  | `/products`           | Tidak        | Mengambil katalog produk      |
+| `GET`  | `/products/:idOrSlug` | Tidak        | Mengambil detail produk       |
+| `POST` | `/orders`             | Bearer token | Membuat pesanan pelanggan     |
 
 Parameter yang tersedia pada `GET /products`:
 
@@ -255,15 +255,15 @@ Semua endpoint berikut memerlukan header:
 Authorization: Bearer <token>
 ```
 
-| Method | Endpoint | Keterangan |
-| --- | --- | --- |
-| `GET` | `/admin/stats` | Mengambil statistik dashboard |
-| `GET` | `/admin/products` | Mengambil seluruh produk |
-| `POST` | `/admin/products` | Menambahkan produk |
-| `PUT` | `/admin/products/:id` | Mengubah produk |
-| `DELETE` | `/admin/products/:id` | Menghapus produk |
-| `POST` | `/admin/uploads/image` | Mengunggah gambar produk |
-| `GET` | `/admin/orders` | Mengambil daftar pesanan |
+| Method   | Endpoint               | Keterangan                    |
+| -------- | ---------------------- | ----------------------------- |
+| `GET`    | `/admin/stats`         | Mengambil statistik dashboard |
+| `GET`    | `/admin/products`      | Mengambil seluruh produk      |
+| `POST`   | `/admin/products`      | Menambahkan produk            |
+| `PUT`    | `/admin/products/:id`  | Mengubah produk               |
+| `DELETE` | `/admin/products/:id`  | Menghapus produk              |
+| `POST`   | `/admin/uploads/image` | Mengunggah gambar produk      |
+| `GET`    | `/admin/orders`        | Mengambil daftar pesanan      |
 
 Contoh request produk:
 

@@ -1,6 +1,15 @@
+require("dotenv").config();
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+
+const adminEmail = process.env.ADMIN_EMAIL;
+const adminPassword = process.env.ADMIN_PASSWORD;
+if (!adminEmail || !adminPassword) {
+  throw new Error(
+    "Konfigurasi environment belum lengkap. Isi ADMIN_EMAIL dan ADMIN_PASSWORD.",
+  );
+}
 
 const port = 3310;
 const base = `http://127.0.0.1:${port}`;
@@ -43,8 +52,8 @@ const request = async (url, options) => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: process.env.ADMIN_EMAIL || "admin@falstore.local",
-        password: process.env.ADMIN_PASSWORD || "admin12345",
+        email: adminEmail,
+        password: adminPassword,
       }),
     });
     if (!login.body?.token) throw new Error("Login admin gagal.");

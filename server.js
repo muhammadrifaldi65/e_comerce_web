@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -86,13 +87,19 @@ class SqliteStatement {
   }
 }
 
-const PORT = Number(process.env.PORT || 3000);
-const JWT_SECRET =
-  process.env.JWT_SECRET || "falstore-development-secret-change-me";
-const ADMIN_EMAIL = (
-  process.env.ADMIN_EMAIL || "admin@falstore.local"
-).toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin12345";
+const PORT = Number(process.env.PORT);
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+if (!Number.isInteger(PORT) || PORT <= 0) {
+  throw new Error("PORT harus berupa angka positif.");
+}
+if (!JWT_SECRET || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
+  throw new Error(
+    "Konfigurasi environment belum lengkap. Isi PORT, JWT_SECRET, ADMIN_EMAIL, dan ADMIN_PASSWORD.",
+  );
+}
 const db = new SqliteDatabase(DB_FILE);
 const ready = db.init().then(() => {
   db.exec(`
@@ -347,12 +354,10 @@ app.post("/api/auth/register", (req, res, next) => {
       .toLowerCase();
     const password = String(req.body.password || "");
     if (name.length < 2 || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8)
-      return res
-        .status(400)
-        .json({
-          error:
-            "Nama, email valid, dan kata sandi minimal 8 karakter diperlukan.",
-        });
+      return res.status(400).json({
+        error:
+          "Nama, email valid, dan kata sandi minimal 8 karakter diperlukan.",
+      });
     const result = db
       .prepare(
         "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
@@ -477,15 +482,13 @@ app.post("/api/admin/products", (req, res, next) => {
         p.image,
         p.isFeatured ? 1 : 0,
       );
-    res
-      .status(201)
-      .json({
-        product: publicProduct(
-          db
-            .prepare("SELECT * FROM products WHERE id = ?")
-            .get(result.lastInsertRowid),
-        ),
-      });
+    res.status(201).json({
+      product: publicProduct(
+        db
+          .prepare("SELECT * FROM products WHERE id = ?")
+          .get(result.lastInsertRowid),
+      ),
+    });
   } catch (error) {
     if (String(error.message).includes("UNIQUE"))
       return res.status(409).json({ error: "Slug produk sudah digunakan." });
@@ -545,18 +548,14 @@ app.delete("/api/admin/products/:id", (req, res) => {
 });
 app.post("/api/admin/uploads/image", upload.single("image"), (req, res) => {
   if (!req.file)
-    return res
-      .status(400)
-      .json({
-        error: "File gambar wajib diunggah (JPG, PNG, WEBP, atau GIF).",
-      });
-  res
-    .status(201)
-    .json({
-      url: `/uploads/${req.file.filename}`,
-      filename: req.file.filename,
-      size: req.file.size,
+    return res.status(400).json({
+      error: "File gambar wajib diunggah (JPG, PNG, WEBP, atau GIF).",
     });
+  res.status(201).json({
+    url: `/uploads/${req.file.filename}`,
+    filename: req.file.filename,
+    size: req.file.size,
+  });
 });
 app.get("/api/admin/orders", (_req, res) =>
   res.json({
