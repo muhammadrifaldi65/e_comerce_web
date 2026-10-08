@@ -136,6 +136,8 @@ const upload = multer({
   fileFilter: (_req, file, cb) => cb(null, new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']).has(file.mimetype))
 });
 
+// ivanda
+
 function publicUser(user) { return { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.created_at }; }
 function publicProduct(product) { const { sales_count, ...rest } = product; return { ...rest, salesCount: Number(sales_count || 0), isFeatured: Boolean(product.is_featured), createdAt: product.created_at, updatedAt: product.updated_at }; }
 function signUser(user) { return jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' }); }
