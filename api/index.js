@@ -1,6 +1,32 @@
-const { app, ready } = require("../server");
+let runtime;
+let loadError;
+
+try {
+  runtime = require("../server");
+} catch (error) {
+  loadError = error;
+}
 
 module.exports = async function handler(req, res) {
-  await ready;
-  return app(req, res);
+  try {
+    if (loadError) throw loadError;
+    await runtime.ready;
+    return runtime.app(req, res);
+  } catch (error) {
+    console.error(error);
+    if (res.headersSent) return;
+    const required = [
+      "DATABASE_URL",
+      "JWT_SECRET",
+      "ADMIN_EMAIL",
+      "ADMIN_PASSWORD",
+    ];
+    const missing = required.filter((key) => !process.env[key]);
+    res.status(500).json({
+      error: missing.length
+        ? "Environment Vercel belum lengkap."
+        : "Server gagal melakukan inisialisasi.",
+      missing,
+    });
+  }
 };
