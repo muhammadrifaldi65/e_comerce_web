@@ -10,7 +10,7 @@
     "smoke": "node scripts/smoke-test.js"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
