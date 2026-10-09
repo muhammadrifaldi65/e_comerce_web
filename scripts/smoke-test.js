@@ -3,11 +3,12 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const databaseUrl = process.env.DATABASE_URL;
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
-if (!adminEmail || !adminPassword) {
+if (!databaseUrl || !adminEmail || !adminPassword) {
   throw new Error(
-    "Konfigurasi environment belum lengkap. Isi ADMIN_EMAIL dan ADMIN_PASSWORD.",
+    "Konfigurasi environment belum lengkap. Isi DATABASE_URL, ADMIN_EMAIL, dan ADMIN_PASSWORD.",
   );
 }
 

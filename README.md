@@ -15,7 +15,7 @@ Aplikasi web e-commerce sederhana untuk penjualan alat elektronik. Proyek ini di
 
 Falstore menyediakan katalog produk elektronik dengan halaman beranda, katalog, detail produk, keranjang belanja, wishlist, checkout, akun pengguna, dan dashboard admin.
 
-Aplikasi menggunakan frontend berbasis HTML, CSS, dan JavaScript serta backend Node.js dengan Express. Data pengguna, produk, pesanan, dan item pesanan disimpan dalam database SQLite melalui `sql.js`, sehingga proyek dapat dijalankan tanpa memasang server database terpisah.
+Aplikasi menggunakan frontend berbasis HTML, CSS, dan JavaScript serta backend Node.js dengan Express. Data pengguna, produk, pesanan, dan item pesanan disimpan di Neon PostgreSQL melalui driver `pg`. File SQLite lokal tidak digunakan oleh server.
 
 ## Tujuan Pembelajaran
 
@@ -66,7 +66,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 | --------------- | ----------------------------------------------------------- |
 | Runtime         | Node.js 20 atau lebih baru                                  |
 | Backend         | Express 5                                                   |
-| Database        | SQLite melalui `sql.js`                                     |
+| Database        | Neon PostgreSQL melalui `pg`                       |
 | Autentikasi     | JSON Web Token (`jsonwebtoken`)                             |
 | Hash kata sandi | `bcryptjs`                                                  |
 | Upload file     | `multer`                                                    |
@@ -116,7 +116,7 @@ npm --version
    http://localhost:3000
    ```
 
-Database akan dibuat atau digunakan dari file `data/falstore.sqlite`. Folder `uploads/` digunakan untuk menyimpan gambar yang diunggah melalui dashboard admin.
+Saat pertama kali dijalankan, server membuat tabel dan seed katalog di database Neon, lalu membuat atau menyinkronkan akun admin dari environment. Folder `uploads/` tetap digunakan untuk menyimpan gambar yang diunggah melalui dashboard admin.
 Jika file upload terhapus atau tidak tersedia, API dan URL gambar akan menggunakan gambar produk bawaan (`/img/product01.png`) agar katalog tidak menghasilkan error `ENOENT`.
 
 
@@ -144,16 +144,17 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
    Copy-Item .env.example .env
    ```
 
-2. Buka file `.env`, lalu isi nilai konfigurasi:
+2. Buat project di Neon, salin connection string PostgreSQL dari dashboard Neon, lalu isi file `.env`:
 
-   | Variable         | Contoh                     | Keterangan                            |
-   | ---------------- | -------------------------- | ------------------------------------- |
-   | `PORT`           | `3000`                     | Port HTTP server                      |
-   | `JWT_SECRET`     | `secret-jwt-yang-kuat`     | Secret untuk menandatangani token JWT |
-   | `ADMIN_EMAIL`    | `admin@example.com`        | Email akun admin awal                 |
-   | `ADMIN_PASSWORD` | `password-admin-yang-kuat` | Kata sandi akun admin awal            |
-Jika akun admin sudah ada di database, `ADMIN_PASSWORD` akan disinkronkan saat server dijalankan ulang. Setelah mengubah `.env`, restart server sebelum mencoba login.
+   | Variable         | Contoh                                                  | Keterangan                             |
+   | ---------------- | -------------------------------------------------------- | -------------------------------------- |
+   | `PORT`           | `3000`                                                   | Port HTTP server                       |
+   | `DATABASE_URL`   | `postgresql://user:password@host/neondb?sslmode=require` | Connection string database Neon        |
+   | `JWT_SECRET`     | `secret-jwt-yang-kuat`                                   | Secret untuk menandatangani token JWT  |
+   | `ADMIN_EMAIL`    | `admin@example.com`                                      | Email akun admin awal                  |
+   | `ADMIN_PASSWORD` | `password-admin-yang-kuat`                              | Kata sandi akun admin awal             |
 
+   `DATABASE_URL` wajib menggunakan connection string Neon. Server tidak lagi membaca `data/falstore.sqlite`. Jangan commit connection string atau secret.
 
 3. Jalankan server:
 
@@ -161,20 +162,21 @@ Jika akun admin sudah ada di database, `ADMIN_PASSWORD` akan disinkronkan saat s
    npm start
    ```
 
+   Pada startup pertama, schema, lima produk demo, dan akun admin dibuat di Neon. Jika akun admin sudah ada, `ADMIN_PASSWORD` akan disinkronkan saat server dijalankan ulang. Setelah mengubah `.env`, restart server sebelum mencoba login.
+
 File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
 
 ## Akun Demo
 
-Pada konfigurasi lokal contoh, akun admin dibuat otomatis saat server pertama kali dijalankan:
+Isi `ADMIN_EMAIL` dan `ADMIN_PASSWORD` pada `.env` digunakan untuk membuat atau menyinkronkan akun admin di Neon:
 
 ```text
-Email    : admin@falstore.local
-Password : admin12345
+Email    : sesuai ADMIN_EMAIL
+Password : sesuai ADMIN_PASSWORD
 ```
 
-Kredensial tersebut hanya ditujukan untuk demonstrasi lokal. Gunakan nilai yang berbeda pada `.env` untuk pengumpulan tugas atau deployment.
+Gunakan kredensial yang berbeda untuk deployment publik. Pelanggan baru dapat membuat akun melalui halaman `account.html`.
 
-Pelanggan baru dapat membuat akun melalui halaman `account.html`.
 
 ## Struktur Direktori
 
@@ -192,8 +194,6 @@ Pelanggan baru dapat membuat akun melalui halaman `account.html`.
 ├── server.js                 # Server Express, database, auth, dan API
 ├── package.json               # Konfigurasi proyek dan dependency
 ├── .env.example              # Template konfigurasi environment
-├── data/
-│   └── falstore.sqlite        # Database SQLite aplikasi
 ├── uploads/                  # Gambar hasil upload admin
 ├── css/
 │   ├── style.css             # Style utama aplikasi
@@ -317,7 +317,7 @@ Proyek ini dibuat untuk pembelajaran dan demonstrasi lokal. Beberapa hal yang pe
 - Proses pembayaran masih berupa simulasi; belum terhubung ke payment gateway.
 - Keranjang dan wishlist setiap akun dipisahkan berdasarkan ID pengguna di `localStorage` browser; data tamu memakai namespace terpisah.
 - Belum tersedia fitur reset kata sandi, verifikasi email, dan manajemen status pesanan melalui UI.
-- SQLite melalui `sql.js` sesuai untuk tugas dan aplikasi kecil, tetapi deployment berskala besar sebaiknya menggunakan database server yang sesuai.
+- Neon PostgreSQL digunakan sebagai database terpusat; SQLite lokal tidak digunakan saat login maupun operasi API.
 - Validasi produksi tambahan, rate limiting, logging terstruktur, dan konfigurasi HTTPS masih diperlukan untuk deployment publik.
 
 ## Lisensi

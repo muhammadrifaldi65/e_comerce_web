@@ -6,90 +6,88 @@ const crypto = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const { Pool } = require("pg");
 
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
-const DB_FILE = path.join(DATA_DIR, "falstore.sqlite");
 const UPLOAD_DIR = path.join(ROOT, "uploads");
 const DEFAULT_PRODUCT_IMAGE = "/img/product01.png";
 const DEFAULT_PRODUCT_IMAGE_FILE = path.join(ROOT, "img", "product01.png");
-fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-class SqliteDatabase {
-  constructor(file) {
-    this.file = file;
-    this.database = null;
-    this.inTransaction = false;
-  }
-  async init() {
-    const initSqlJs = require("sql.js");
-    const SQL = await initSqlJs({
-      locateFile: (file) => require.resolve(`sql.js/dist/${file}`),
-    });
-    this.database = fs.existsSync(this.file)
-      ? new SQL.Database(fs.readFileSync(this.file))
-      : new SQL.Database();
-    return this;
-  }
-  exec(sql) {
-    this.database.run(sql);
-    this.save();
-  }
-  pragma() {}
-  save() {
-    fs.writeFileSync(this.file, Buffer.from(this.database.export()));
-  }
-  prepare(sql) {
-    return new SqliteStatement(this, sql);
-  }
-  transaction(callback) {
-    this.database.run("BEGIN");
-    this.inTransaction = true;
-    try {
-      const value = callback();
-      this.inTransaction = false;
-      this.database.run("COMMIT");
-      this.save();
-      return value;
-    } catch (error) {
-      this.inTransaction = false;
-      this.database.run("ROLLBACK");
-      throw error;
-    }
-  }
+function postgresSql(sql) {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
 }
-class SqliteStatement {
-  constructor(owner, sql) {
+
+class PostgresStatement {
+  constructor(owner, sql, client = owner.pool) {
     this.owner = owner;
-    this.sql = sql;
+    this.sql = postgresSql(sql);
+    this.client = client;
   }
-  rows(params) {
-    const statement = this.owner.database.prepare(this.sql);
-    statement.bind(params);
-    const rows = [];
-    while (statement.step()) rows.push(statement.getAsObject());
-    statement.free();
-    return rows;
+  async all(...params) {
+    const result = await this.client.query(this.sql, params);
+    return result.rows;
   }
-  all(...params) {
-    return this.rows(params);
+  async get(...params) {
+    const rows = await this.all(...params);
+    return rows[0];
   }
-  get(...params) {
-    return this.rows(params)[0];
-  }
-  run(...params) {
-    this.owner.database.run(this.sql, params);
-    const id =
-      this.owner.database.exec("SELECT last_insert_rowid() AS id")[0]
-        ?.values[0]?.[0] || 0;
-    const changes = this.owner.database.getRowsModified();
-    if (!this.owner.inTransaction) this.owner.save();
-    return { lastInsertRowid: id, changes };
+  async run(...params) {
+    const sql =
+      /^\s*INSERT\b/i.test(this.sql) && !/\bRETURNING\b/i.test(this.sql)
+        ? `${this.sql} RETURNING id`
+        : this.sql;
+    const result = await this.client.query(sql, params);
+    return {
+      lastInsertRowid: result.rows[0]?.id ?? 0,
+      changes: result.rowCount,
+    };
   }
 }
 
+class PostgresDatabase {
+  constructor(connectionString) {
+    this.pool = new Pool({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+    });
+  }
+  async init() {
+    await this.pool.query("SELECT 1");
+    return this;
+  }
+  async exec(sql) {
+    return this.pool.query(sql);
+  }
+  prepare(sql) {
+    return new PostgresStatement(this, sql);
+  }
+  async transaction(callback) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const value = await callback({
+        prepare: (sql) => new PostgresStatement(this, sql, client),
+      });
+      await client.query("COMMIT");
+      return value;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async close() {
+    await this.pool.end();
+  }
+}
+
+
+
 const PORT = Number(process.env.PORT);
+const DATABASE_URL = process.env.DATABASE_URL;
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL?.trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -97,39 +95,60 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 if (!Number.isInteger(PORT) || PORT <= 0) {
   throw new Error("PORT harus berupa angka positif.");
 }
-if (!JWT_SECRET || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
+if (!DATABASE_URL || !JWT_SECRET || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
   throw new Error(
-    "Konfigurasi environment belum lengkap. Isi PORT, JWT_SECRET, ADMIN_EMAIL, dan ADMIN_PASSWORD.",
+    "Konfigurasi environment belum lengkap. Isi PORT, DATABASE_URL, JWT_SECRET, ADMIN_EMAIL, dan ADMIN_PASSWORD.",
   );
 }
-const db = new SqliteDatabase(DB_FILE);
-const ready = db.init().then(() => {
-  db.exec(`
+const db = new PostgresDatabase(DATABASE_URL);
+const ready = db.init().then(async () => {
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
+      id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
-      description TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'aksesori',
-      price INTEGER NOT NULL CHECK (price >= 0), old_price INTEGER,
-      stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0), image TEXT NOT NULL DEFAULT '/img/product01.png',
-      is_featured INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'aksesori',
+      price INTEGER NOT NULL CHECK (price >= 0),
+      old_price INTEGER,
+      stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
+      image TEXT NOT NULL DEFAULT '/img/product01.png',
+      is_featured INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, customer_name TEXT NOT NULL,
-      email TEXT NOT NULL, address TEXT NOT NULL, city TEXT NOT NULL, country TEXT NOT NULL,
-      zip_code TEXT NOT NULL, telephone TEXT NOT NULL, payment_method TEXT NOT NULL,
-      notes TEXT NOT NULL DEFAULT '', total INTEGER NOT NULL CHECK (total >= 0),
-      status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      user_id INTEGER,
+      customer_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      address TEXT NOT NULL,
+      city TEXT NOT NULL,
+      country TEXT NOT NULL,
+      zip_code TEXT NOT NULL,
+      telephone TEXT NOT NULL,
+      payment_method TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      total INTEGER NOT NULL CHECK (total >= 0),
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     CREATE TABLE IF NOT EXISTS order_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, product_id INTEGER,
-      product_name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK (quantity > 0),
+      id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      order_id INTEGER NOT NULL,
+      product_id INTEGER,
+      product_name TEXT NOT NULL,
+      price INTEGER NOT NULL,
+      quantity INTEGER NOT NULL CHECK (quantity > 0),
       FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
     );
@@ -191,19 +210,19 @@ const ready = db.init().then(() => {
       1,
     ],
   ];
-  if (db.prepare("SELECT COUNT(*) AS count FROM products").get().count === 0) {
-    const insert = db.prepare(
-      "INSERT INTO products (name, slug, description, category, price, old_price, stock, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    );
-    db.transaction(() =>
-      seedProducts.forEach((product) => insert.run(...product)),
-    );
+  if (Number((await db.prepare("SELECT COUNT(*) AS count FROM products").get()).count) === 0) {
+    await db.transaction(async (tx) => {
+      const insert = tx.prepare(
+        "INSERT INTO products (name, slug, description, category, price, old_price, stock, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      );
+      for (const product of seedProducts) await insert.run(...product);
+    });
   }
-  const admin = db
+  const admin = await db
     .prepare("SELECT id, password_hash, role FROM users WHERE email = ?")
     .get(ADMIN_EMAIL);
   if (!admin) {
-    db.prepare(
+    await db.prepare(
       "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
     ).run(
       "Administrator",
@@ -215,7 +234,7 @@ const ready = db.init().then(() => {
     admin.role !== "admin" ||
     !bcrypt.compareSync(ADMIN_PASSWORD, admin.password_hash)
   ) {
-    db.prepare(
+    await db.prepare(
       "UPDATE users SET password_hash = ?, role = 'admin' WHERE id = ?",
     ).run(bcrypt.hashSync(ADMIN_PASSWORD, 12), admin.id);
   }
@@ -292,7 +311,7 @@ function signUser(user) {
   });
 }
 function auth(required = true) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
     if (!token)
       return required
@@ -300,7 +319,7 @@ function auth(required = true) {
         : next();
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      const user = db
+      const user = await db
         .prepare(
           "SELECT id, name, email, role, created_at FROM users WHERE id = ?",
         )
@@ -370,7 +389,7 @@ function removeUploadedImage(image) {
 app.get("/api/health", (_req, res) =>
   res.json({ ok: true, service: "falstore-api" }),
 );
-app.post("/api/auth/register", (req, res, next) => {
+app.post("/api/auth/register", async (req, res, next) => {
   try {
     const name = String(req.body.name || "").trim();
     const email = String(req.body.email || "")
@@ -382,12 +401,12 @@ app.post("/api/auth/register", (req, res, next) => {
         error:
           "Nama, email valid, dan kata sandi minimal 8 karakter diperlukan.",
       });
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
       )
       .run(name, email, bcrypt.hashSync(password, 12), "customer");
-    const user = db
+    const user = await db
       .prepare(
         "SELECT id, name, email, role, created_at FROM users WHERE id = ?",
       )
@@ -399,120 +418,141 @@ app.post("/api/auth/register", (req, res, next) => {
     next(error);
   }
 });
-app.post("/api/auth/login", (req, res) => {
-  const email = String(req.body.email || "")
-    .trim()
-    .toLowerCase();
-  const password = String(req.body.password || "");
-  const user = db
-    .prepare(
-      "SELECT id, name, email, password_hash, role, created_at FROM users WHERE email = ?",
-    )
-    .get(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash))
-    return res.status(401).json({ error: "Email atau kata sandi salah." });
-  res.json({ token: signUser(user), user: publicUser(user) });
+app.post("/api/auth/login", async (req, res, next) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(req.body.password || "");
+    const user = await db
+      .prepare(
+        "SELECT id, name, email, password_hash, role, created_at FROM users WHERE email = ?",
+      )
+      .get(email);
+    if (!user || !bcrypt.compareSync(password, user.password_hash))
+      return res.status(401).json({ error: "Email atau kata sandi salah." });
+    res.json({ token: signUser(user), user: publicUser(user) });
+  } catch (error) {
+    next(error);
+  }
 });
 app.get("/api/auth/me", auth(), (req, res) =>
   res.json({ user: publicUser(req.user) }),
 );
 
-app.get("/api/products", (req, res) => {
-  const params = [];
-  const conditions = [];
-  if (req.query.category) {
-    conditions.push("p.category = ?");
-    params.push(String(req.query.category).toLowerCase());
+app.get("/api/products", async (req, res, next) => {
+  try {
+    const params = [];
+    const conditions = [];
+    if (req.query.category) {
+      conditions.push("p.category = ?");
+      params.push(String(req.query.category).toLowerCase());
+    }
+    if (req.query.search) {
+      conditions.push("(p.name ILIKE ? OR p.description ILIKE ?)");
+      const q = `%${String(req.query.search)}%`;
+      params.push(q, q);
+    }
+    if (req.query.featured === "1") conditions.push("p.is_featured = 1");
+    const parsePrice = (value) => {
+      if (value == null || value === "") return null;
+      const price = Number(value);
+      return Number.isInteger(price) && price >= 0 ? price : null;
+    };
+    const minPrice = parsePrice(req.query.minPrice);
+    const maxPrice = parsePrice(req.query.maxPrice);
+    if (minPrice !== null) {
+      conditions.push("p.price >= ?");
+      params.push(minPrice);
+    }
+    if (maxPrice !== null) {
+      conditions.push("p.price <= ?");
+      params.push(maxPrice);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const sort = String(req.query.sort || "latest");
+    const popular = sort === "popular";
+    const select = popular
+      ? "SELECT p.*, COALESCE(SUM(oi.quantity), 0) AS sales_count FROM products p LEFT JOIN order_items oi ON oi.product_id = p.id"
+      : "SELECT p.* FROM products p";
+    const order =
+      sort === "price_asc"
+        ? "ORDER BY p.price ASC, p.id DESC"
+        : sort === "price_desc"
+          ? "ORDER BY p.price DESC, p.id DESC"
+          : popular
+            ? "ORDER BY sales_count DESC, p.created_at DESC, p.id DESC"
+            : "ORDER BY p.created_at DESC, p.id DESC";
+    const limit =
+      Number.isInteger(Number(req.query.limit)) && Number(req.query.limit) > 0
+        ? Math.min(Number(req.query.limit), 50)
+        : null;
+    const sql = `${select} ${where} ${popular ? "GROUP BY p.id" : ""} ${order}${limit ? " LIMIT ?" : ""}`;
+    if (limit) params.push(limit);
+    const products = (await db.prepare(sql).all(...params)).map(publicProduct);
+    res.json({ products });
+  } catch (error) {
+    next(error);
   }
-  if (req.query.search) {
-    conditions.push("(p.name LIKE ? OR p.description LIKE ?)");
-    const q = `%${String(req.query.search)}%`;
-    params.push(q, q);
-  }
-  if (req.query.featured === "1") conditions.push("p.is_featured = 1");
-  const parsePrice = (value) => {
-    if (value == null || value === "") return null;
-    const price = Number(value);
-    return Number.isInteger(price) && price >= 0 ? price : null;
-  };
-  const minPrice = parsePrice(req.query.minPrice);
-  const maxPrice = parsePrice(req.query.maxPrice);
-  if (minPrice !== null) {
-    conditions.push("p.price >= ?");
-    params.push(minPrice);
-  }
-  if (maxPrice !== null) {
-    conditions.push("p.price <= ?");
-    params.push(maxPrice);
-  }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const sort = String(req.query.sort || "latest");
-  const popular = sort === "popular";
-  const select = popular
-    ? "SELECT p.*, COALESCE(SUM(oi.quantity), 0) AS sales_count FROM products p LEFT JOIN order_items oi ON oi.product_id = p.id"
-    : "SELECT p.* FROM products p";
-  const order =
-    sort === "price_asc"
-      ? "ORDER BY p.price ASC, p.id DESC"
-      : sort === "price_desc"
-        ? "ORDER BY p.price DESC, p.id DESC"
-        : popular
-          ? "ORDER BY sales_count DESC, p.created_at DESC, p.id DESC"
-          : "ORDER BY p.created_at DESC, p.id DESC";
-  const limit =
-    Number.isInteger(Number(req.query.limit)) && Number(req.query.limit) > 0
-      ? Math.min(Number(req.query.limit), 50)
-      : null;
-  const sql = `${select} ${where} ${popular ? "GROUP BY p.id" : ""} ${order}${limit ? " LIMIT ?" : ""}`;
-  if (limit) params.push(limit);
-  const products = db
-    .prepare(sql)
-    .all(...params)
-    .map(publicProduct);
-  res.json({ products });
 });
-app.get("/api/products/:idOrSlug", (req, res) => {
-  const key = req.params.idOrSlug;
-  const product = /^\d+$/.test(key)
-    ? db.prepare("SELECT * FROM products WHERE id = ?").get(Number(key))
-    : db.prepare("SELECT * FROM products WHERE slug = ?").get(key);
-  if (!product)
-    return res.status(404).json({ error: "Produk tidak ditemukan." });
-  res.json({ product: publicProduct(product) });
+app.get("/api/products/:idOrSlug", async (req, res, next) => {
+  try {
+    const key = req.params.idOrSlug;
+    const product = /^\d+$/.test(key)
+      ? await db.prepare("SELECT * FROM products WHERE id = ?").get(Number(key))
+      : await db.prepare("SELECT * FROM products WHERE slug = ?").get(key);
+    if (!product)
+      return res.status(404).json({ error: "Produk tidak ditemukan." });
+    res.json({ product: publicProduct(product) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api/admin", auth(), adminOnly);
-app.get("/api/admin/stats", (_req, res) =>
-  res.json({
-    stats: {
-      products: db.prepare("SELECT COUNT(*) AS count FROM products").get()
-        .count,
-      customers: db
-        .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'customer'")
-        .get().count,
-      orders: db.prepare("SELECT COUNT(*) AS count FROM orders").get().count,
-      revenue: db
+app.get("/api/admin/stats", async (_req, res, next) => {
+  try {
+    const [products, customers, orders, revenue] = await Promise.all([
+      db.prepare("SELECT COUNT(*)::int AS count FROM products").get(),
+      db
+        .prepare("SELECT COUNT(*)::int AS count FROM users WHERE role = 'customer'")
+        .get(),
+      db.prepare("SELECT COUNT(*)::int AS count FROM orders").get(),
+      db
         .prepare(
-          "SELECT COALESCE(SUM(total), 0) AS total FROM orders WHERE status != 'cancelled'",
+          "SELECT COALESCE(SUM(total), 0)::int AS total FROM orders WHERE status != 'cancelled'",
         )
-        .get().total,
-    },
-  }),
-);
-app.get("/api/admin/products", (_req, res) =>
-  res.json({
-    products: db
-      .prepare("SELECT * FROM products ORDER BY id DESC")
-      .all()
-      .map(publicProduct),
-  }),
-);
-app.post("/api/admin/products", (req, res, next) => {
+        .get(),
+    ]);
+    res.json({
+      stats: {
+        products: products.count,
+        customers: customers.count,
+        orders: orders.count,
+        revenue: revenue.total,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+app.get("/api/admin/products", async (_req, res, next) => {
+  try {
+    res.json({
+      products: (await db
+        .prepare("SELECT * FROM products ORDER BY id DESC")
+        .all()).map(publicProduct),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post("/api/admin/products", async (req, res, next) => {
   try {
     const parsed = validateProduct(req.body);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const p = parsed.value;
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO products (name, slug, description, category, price, old_price, stock, image, is_featured, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
       )
@@ -529,7 +569,7 @@ app.post("/api/admin/products", (req, res, next) => {
       );
     res.status(201).json({
       product: publicProduct(
-        db
+        await db
           .prepare("SELECT * FROM products WHERE id = ?")
           .get(result.lastInsertRowid),
       ),
@@ -540,9 +580,9 @@ app.post("/api/admin/products", (req, res, next) => {
     next(error);
   }
 });
-app.put("/api/admin/products/:id", (req, res, next) => {
+app.put("/api/admin/products/:id", async (req, res, next) => {
   try {
-    const current = db
+    const current = await db
       .prepare("SELECT * FROM products WHERE id = ?")
       .get(Number(req.params.id));
     if (!current)
@@ -555,7 +595,7 @@ app.put("/api/admin/products/:id", (req, res, next) => {
     });
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const p = parsed.value;
-    db.prepare(
+    await db.prepare(
       "UPDATE products SET name = ?, slug = ?, description = ?, category = ?, price = ?, old_price = ?, stock = ?, image = ?, is_featured = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     ).run(
       p.name,
@@ -572,7 +612,7 @@ app.put("/api/admin/products/:id", (req, res, next) => {
     if (current.image !== p.image) removeUploadedImage(current.image);
     res.json({
       product: publicProduct(
-        db.prepare("SELECT * FROM products WHERE id = ?").get(current.id),
+        await db.prepare("SELECT * FROM products WHERE id = ?").get(current.id),
       ),
     });
   } catch (error) {
@@ -581,15 +621,19 @@ app.put("/api/admin/products/:id", (req, res, next) => {
     next(error);
   }
 });
-app.delete("/api/admin/products/:id", (req, res) => {
-  const product = db
-    .prepare("SELECT * FROM products WHERE id = ?")
-    .get(Number(req.params.id));
-  if (!product)
-    return res.status(404).json({ error: "Produk tidak ditemukan." });
-  db.prepare("DELETE FROM products WHERE id = ?").run(product.id);
-  removeUploadedImage(product.image);
-  res.status(204).end();
+app.delete("/api/admin/products/:id", async (req, res, next) => {
+  try {
+    const product = await db
+      .prepare("SELECT * FROM products WHERE id = ?")
+      .get(Number(req.params.id));
+    if (!product)
+      return res.status(404).json({ error: "Produk tidak ditemukan." });
+    await db.prepare("DELETE FROM products WHERE id = ?").run(product.id);
+    removeUploadedImage(product.image);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 });
 app.post("/api/admin/uploads/image", upload.single("image"), (req, res) => {
   if (!req.file)
@@ -602,103 +646,115 @@ app.post("/api/admin/uploads/image", upload.single("image"), (req, res) => {
     size: req.file.size,
   });
 });
-app.get("/api/admin/orders", (_req, res) =>
-  res.json({
-    orders: db
-      .prepare(
-        "SELECT o.*, u.name AS account_name FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.id DESC",
-      )
-      .all(),
-  }),
-);
-
-app.post("/api/orders", auth(), (req, res) => {
-  const {
-    customerName,
-    email,
-    address,
-    city,
-    country,
-    zipCode,
-    telephone,
-    paymentMethod,
-    notes = "",
-    items,
-  } = req.body;
-  if (
-    !customerName ||
-    !email ||
-    !address ||
-    !city ||
-    !country ||
-    !zipCode ||
-    !telephone ||
-    !paymentMethod ||
-    !Array.isArray(items) ||
-    !items.length
-  )
-    return res.status(400).json({ error: "Data checkout belum lengkap." });
-  const requested = items
-    .map((item) => ({ id: Number(item.id), quantity: Number(item.quantity) }))
-    .filter(
-      (item) =>
-        Number.isInteger(item.id) &&
-        Number.isInteger(item.quantity) &&
-        item.quantity > 0,
-    );
-  if (!requested.length)
-    return res.status(400).json({ error: "Item pesanan tidak valid." });
-  const products = requested.map((item) => ({
-    ...item,
-    product: db.prepare("SELECT * FROM products WHERE id = ?").get(item.id),
-  }));
-  if (
-    products.some((item) => !item.product || item.quantity > item.product.stock)
-  )
-    return res
-      .status(400)
-      .json({ error: "Produk tidak tersedia atau stok tidak mencukupi." });
-  const total = products.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0,
-  );
-  const createOrder = db.transaction(() => {
-    const order = db
-      .prepare(
-        "INSERT INTO orders (user_id, customer_name, email, address, city, country, zip_code, telephone, payment_method, notes, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-      .run(
-        req.user.id,
-        String(customerName),
-        String(email),
-        String(address),
-        String(city),
-        String(country),
-        String(zipCode),
-        String(telephone),
-        String(paymentMethod),
-        String(notes),
-        total,
-      );
-    const addItem = db.prepare(
-      "INSERT INTO order_items (order_id, product_id, product_name, price, quantity) VALUES (?, ?, ?, ?, ?)",
-    );
-    const reduceStock = db.prepare(
-      "UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    );
-    products.forEach((item) => {
-      addItem.run(
-        order.lastInsertRowid,
-        item.product.id,
-        item.product.name,
-        item.product.price,
-        item.quantity,
-      );
-      reduceStock.run(item.quantity, item.product.id);
+app.get("/api/admin/orders", async (_req, res, next) => {
+  try {
+    res.json({
+      orders: await db
+        .prepare(
+          "SELECT o.*, u.name AS account_name FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.id DESC",
+        )
+        .all(),
     });
-    return order.lastInsertRowid;
-  });
-  res.status(201).json({ orderId: createOrder(), total });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/orders", auth(), async (req, res, next) => {
+  try {
+    const {
+      customerName,
+      email,
+      address,
+      city,
+      country,
+      zipCode,
+      telephone,
+      paymentMethod,
+      notes = "",
+      items,
+    } = req.body;
+    if (
+      !customerName ||
+      !email ||
+      !address ||
+      !city ||
+      !country ||
+      !zipCode ||
+      !telephone ||
+      !paymentMethod ||
+      !Array.isArray(items) ||
+      !items.length
+    )
+      return res.status(400).json({ error: "Data checkout belum lengkap." });
+    const requested = items
+      .map((item) => ({ id: Number(item.id), quantity: Number(item.quantity) }))
+      .filter(
+        (item) =>
+          Number.isInteger(item.id) &&
+          Number.isInteger(item.quantity) &&
+          item.quantity > 0,
+      );
+    if (!requested.length)
+      return res.status(400).json({ error: "Item pesanan tidak valid." });
+    const products = await Promise.all(
+      requested.map(async (item) => ({
+        ...item,
+        product: await db
+          .prepare("SELECT * FROM products WHERE id = ?")
+          .get(item.id),
+      })),
+    );
+    if (
+      products.some((item) => !item.product || item.quantity > item.product.stock)
+    )
+      return res
+        .status(400)
+        .json({ error: "Produk tidak tersedia atau stok tidak mencukupi." });
+    const total = products.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
+    );
+    const orderId = await db.transaction(async (tx) => {
+      const order = await tx
+        .prepare(
+          "INSERT INTO orders (user_id, customer_name, email, address, city, country, zip_code, telephone, payment_method, notes, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          req.user.id,
+          String(customerName),
+          String(email),
+          String(address),
+          String(city),
+          String(country),
+          String(zipCode),
+          String(telephone),
+          String(paymentMethod),
+          String(notes),
+          total,
+        );
+      const addItem = tx.prepare(
+        "INSERT INTO order_items (order_id, product_id, product_name, price, quantity) VALUES (?, ?, ?, ?, ?)",
+      );
+      const reduceStock = tx.prepare(
+        "UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      );
+      for (const item of products) {
+        await addItem.run(
+          order.lastInsertRowid,
+          item.product.id,
+          item.product.name,
+          item.product.price,
+          item.quantity,
+        );
+        await reduceStock.run(item.quantity, item.product.id);
+      }
+      return order.lastInsertRowid;
+    });
+    res.status(201).json({ orderId, total });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api", (_req, res) =>

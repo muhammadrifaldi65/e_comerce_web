@@ -6,13 +6,6 @@ node_modules/
 .env.*
 !.env.example
 
-# Database dan file data runtime lokal
-/data/
-*.sqlite
-*.sqlite3
-*.db
-*.db-journal
-
 # File upload yang dibuat saat aplikasi berjalan
 /uploads/
 
