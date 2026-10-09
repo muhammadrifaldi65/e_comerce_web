@@ -105,7 +105,7 @@
               <div class="header-ctn">
                 <!-- Wishlist -->
                 <div>
-                  <a href="#">
+                  <a href="wishlist.html">
                     <i class="fa fa-heart-o"></i>
                     <span>Your Wishlist</span>
                     <div class="qty">2</div>
@@ -252,7 +252,7 @@
               <h3 class="aside-title">Categories</h3>
               <div class="checkbox-filter">
                 <div class="input-checkbox">
-                  <input type="checkbox" id="category-1" />
+                  <input type="checkbox" id="category-1" data-category="laptop" />
                   <label for="category-1">
                     <span></span>
                     Laptops
@@ -261,7 +261,7 @@
                 </div>
 
                 <div class="input-checkbox">
-                  <input type="checkbox" id="category-2" />
+                  <input type="checkbox" id="category-2" data-category="smartphone" />
                   <label for="category-2">
                     <span></span>
                     Smartphones
@@ -270,7 +270,7 @@
                 </div>
 
                 <div class="input-checkbox">
-                  <input type="checkbox" id="category-3" />
+                  <input type="checkbox" id="category-3" data-category="kamera" />
                   <label for="category-3">
                     <span></span>
                     Cameras
@@ -279,7 +279,7 @@
                 </div>
 
                 <div class="input-checkbox">
-                  <input type="checkbox" id="category-4" />
+                  <input type="checkbox" id="category-4" data-category="aksesori" />
                   <label for="category-4">
                     <span></span>
                     Accessories
@@ -287,23 +287,6 @@
                   </label>
                 </div>
 
-                <div class="input-checkbox">
-                  <input type="checkbox" id="category-5" />
-                  <label for="category-5">
-                    <span></span>
-                    Laptops
-                    <small>(120)</small>
-                  </label>
-                </div>
-
-                <div class="input-checkbox">
-                  <input type="checkbox" id="category-6" />
-                  <label for="category-6">
-                    <span></span>
-                    Smartphones
-                    <small>(740)</small>
-                  </label>
-                </div>
               </div>
             </div>
             <!-- /aside Widget -->
@@ -314,13 +297,13 @@
               <div class="price-filter">
                 <div id="price-slider"></div>
                 <div class="input-number price-min">
-                  <input id="price-min" type="number" />
+                  <input id="price-min" type="number" min="0" max="20000000" step="100000" />
                   <span class="qty-up">+</span>
                   <span class="qty-down">-</span>
                 </div>
                 <span>-</span>
                 <div class="input-number price-max">
-                  <input id="price-max" type="number" />
+                  <input id="price-max" type="number" min="0" max="20000000" step="100000" />
                   <span class="qty-up">+</span>
                   <span class="qty-down">-</span>
                 </div>
@@ -400,16 +383,20 @@
                 <label>
                   Sort By:
                   <select class="input-select">
-                    <option value="0">Popular</option>
-                    <option value="1">Position</option>
+                    <option value="popular">Terpopuler</option>
+                    <option value="latest">Terbaru</option>
+                    <option value="price_asc">Harga terendah</option>
+                    <option value="price_desc">Harga tertinggi</option>
                   </select>
                 </label>
 
                 <label>
                   Show:
                   <select class="input-select">
-                    <option value="0">20</option>
-                    <option value="1">50</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
                   </select>
                 </label>
               </div>

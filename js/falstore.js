@@ -1,11 +1,43 @@
 /* Fitur belanja Falstore yang berjalan langsung di browser. */
 (function () {
   "use strict";
-  const key = "falstore-cart",
+  const cartKey = "falstore-cart",
     wishKey = "falstore-wishlist";
-  const read = (name) => JSON.parse(localStorage.getItem(name) || "[]");
+  const accountScope = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("falstore-user") || "null");
+      return user?.id ? `user-${user.id}` : "guest";
+    } catch {
+      return "guest";
+    }
+  };
+  const scopedKey = (name) => `${name}:${accountScope()}`;
+  const read = (name) => {
+    try {
+      const value = JSON.parse(localStorage.getItem(scopedKey(name)) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  };
   const write = (name, data) =>
-    localStorage.setItem(name, JSON.stringify(data));
+    localStorage.setItem(scopedKey(name), JSON.stringify(data));
+  const migrateLegacyStorage = () => {
+    [cartKey, wishKey].forEach((name) => {
+      const legacyKey = name;
+      const guestKey = `${name}:guest`;
+      const legacyValue = localStorage.getItem(legacyKey);
+      if (legacyValue !== null && localStorage.getItem(guestKey) === null)
+        localStorage.setItem(guestKey, legacyValue);
+      if (legacyValue !== null) localStorage.removeItem(legacyKey);
+    });
+  };
+  migrateLegacyStorage();
+  const clearCart = () => write(cartKey, []);
+  window.FalstoreStorage = {
+    getCart: () => read(cartKey),
+    clearCart,
+  };
   const money = (amount) =>
     "Rp " + new Intl.NumberFormat("id-ID").format(Number(amount) || 0);
   const escapeHtml = (value) =>
@@ -20,6 +52,21 @@
           "'": "&#039;",
         })[char],
     );
+  const notice = (text) => {
+    let element = document.querySelector(".falstore-notice");
+    if (!element) {
+      element = document.createElement("p");
+      element.className = "falstore-notice";
+      document.body.append(element);
+    }
+    element.textContent = text;
+    element.classList.add("show");
+    clearTimeout(element.hideTimer);
+    element.hideTimer = setTimeout(
+      () => element.classList.remove("show"),
+      2500,
+    );
+  };
   const productFrom = (button) => {
     const box =
       button.closest(".product, .product-widget, .product-details") || document;
@@ -31,9 +78,9 @@
     const price =
       Number((priceText.match(/[\d.]+/) || ["980"])[0].replace(/\./g, "")) ||
       980000;
-    const image =
-      (box.querySelector("img") || {}).getAttribute("src") ||
-      "img/product01.png";
+    const imageElement =
+      box.querySelector("img") || document.querySelector("#product-main-img img");
+    const image = imageElement?.getAttribute("src") || "img/product01.png";
     return {
       id:
         button.dataset.productId ||
@@ -45,7 +92,7 @@
     };
   };
   const updateBadges = () => {
-    const cart = read(key),
+    const cart = read(cartKey),
       wishlist = read(wishKey);
     document
       .querySelectorAll(".header-ctn .fa-shopping-cart")
@@ -76,11 +123,11 @@
     });
   };
   const addCart = (product) => {
-    const cart = read(key),
+    const cart = read(cartKey),
       item = cart.find((p) => p.id === product.id);
     if (item) item.qty += 1;
     else cart.push({ ...product, qty: 1 });
-    write(key, cart);
+    write(cartKey, cart);
     updateBadges();
     notice(product.name + " ditambahkan ke keranjang");
   };
@@ -95,7 +142,7 @@
   };
   const renderCart = () => {
     if (!location.pathname.endsWith("cart.html")) return;
-    const cart = read(key),
+    const cart = read(cartKey),
       target = document.querySelector("main .row");
     if (!target) return;
     const total = cart.reduce((n, item) => n + item.price * item.qty, 0);
@@ -112,8 +159,8 @@
       (btn) =>
         (btn.onclick = () => {
           write(
-            key,
-            read(key).filter((item) => item.id !== btn.dataset.id),
+            cartKey,
+            read(cartKey).filter((item) => item.id !== btn.dataset.id),
           );
           renderCart();
           updateBadges();
@@ -168,11 +215,13 @@
   const navigateToSearch = (form) => {
     const input = form.querySelector("input");
     const category = form.querySelector("select")?.value || "";
-    const params = new URLSearchParams();
-
+    const params = new URLSearchParams(location.search);
+    params.delete("id");
+    params.delete("q");
+    params.delete("kategori");
+    params.delete("category");
     if (input?.value.trim()) params.set("q", input.value.trim());
     if (category) params.set("kategori", category);
-
     location.href =
       "store.html" + (params.toString() ? "?" + params.toString() : "");
   };
@@ -215,9 +264,9 @@
               return notice("Setujui syarat dan ketentuan terlebih dahulu.");
             write("falstore-last-order", {
               date: new Date().toISOString(),
-              items: read(key),
+              items: read(cartKey),
             });
-            write(key, []);
+            write(cartKey, []);
             updateBadges();
             notice("Pesanan berhasil dibuat. Terima kasih!");
             setTimeout(() => (location.href = "index.html"), 900);

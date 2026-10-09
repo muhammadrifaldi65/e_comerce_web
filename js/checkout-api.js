@@ -14,7 +14,7 @@
           "'": "&#039;",
         })[char],
     );
-  const cart = () => JSON.parse(localStorage.getItem("falstore-cart") || "[]");
+  const cart = () => window.FalstoreStorage?.getCart?.() || [];
   const renderOrder = () => {
     const items = cart();
     const target = document.querySelector(".order-products");
@@ -97,7 +97,7 @@
             const result = await response.json();
             if (!response.ok)
               throw Error(result.error || "Pesanan gagal dibuat.");
-            localStorage.removeItem("falstore-cart");
+            window.FalstoreStorage?.clearCart?.();
             alert(`Pesanan #${result.orderId} berhasil dibuat.`);
             location.href = "account.html";
           } catch (error) {

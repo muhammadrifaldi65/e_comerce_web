@@ -35,6 +35,9 @@
       if (category) category.textContent = product.category;
       const button = details.querySelector(".add-to-cart-btn");
       if (button) button.dataset.productId = String(product.id);
+      const wishlistButton = details.querySelector(".add-to-wishlist");
+      if (wishlistButton)
+        wishlistButton.dataset.productId = String(product.id);
       const stock = details.querySelector(".product-available");
       if (stock)
         stock.textContent =

@@ -143,10 +143,8 @@
   function updatePriceSlider(elem, value) {
     if (!priceSlider || !priceSlider.noUiSlider) return;
     if (elem.hasClass("price-min")) {
-      console.log("min");
       priceSlider.noUiSlider.set([value, null]);
     } else if (elem.hasClass("price-max")) {
-      console.log("max");
       priceSlider.noUiSlider.set([null, value]);
     }
   }
@@ -155,12 +153,12 @@
   var priceSlider = document.getElementById("price-slider");
   if (priceSlider) {
     noUiSlider.create(priceSlider, {
-      start: [1, 999],
+      start: [0, 20000000],
       connect: true,
-      step: 1,
+      step: 100000,
       range: {
-        min: 1,
-        max: 999,
+        min: 0,
+        max: 20000000,
       },
     });
 

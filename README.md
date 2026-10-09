@@ -26,7 +26,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 - Operasi CRUD produk.
 - Autentikasi dan otorisasi berbasis JWT.
 - Hash kata sandi menggunakan bcrypt.
-- Pengelolaan keranjang dan wishlist menggunakan `localStorage`.
+- Pengelolaan keranjang dan wishlist per akun menggunakan `localStorage` dengan namespace berdasarkan ID pengguna.
 - Upload gambar produk.
 - Transaksi database untuk pembuatan pesanan dan pengurangan stok.
 - Pengujian alur utama menggunakan smoke test.
@@ -117,6 +117,8 @@ npm --version
    ```
 
 Database akan dibuat atau digunakan dari file `data/falstore.sqlite`. Folder `uploads/` digunakan untuk menyimpan gambar yang diunggah melalui dashboard admin.
+Jika file upload terhapus atau tidak tersedia, API dan URL gambar akan menggunakan gambar produk bawaan (`/img/product01.png`) agar katalog tidak menghasilkan error `ENOENT`.
+
 
 ## Perintah yang Tersedia
 
@@ -150,6 +152,8 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
    | `JWT_SECRET`     | `secret-jwt-yang-kuat`     | Secret untuk menandatangani token JWT |
    | `ADMIN_EMAIL`    | `admin@example.com`        | Email akun admin awal                 |
    | `ADMIN_PASSWORD` | `password-admin-yang-kuat` | Kata sandi akun admin awal            |
+Jika akun admin sudah ada di database, `ADMIN_PASSWORD` akan disinkronkan saat server dijalankan ulang. Setelah mengubah `.env`, restart server sebelum mencoba login.
+
 
 3. Jalankan server:
 
@@ -243,7 +247,8 @@ Parameter yang tersedia pada `GET /products`:
 - `category`: filter kategori, misalnya `laptop` atau `kamera`.
 - `search`: pencarian berdasarkan nama atau deskripsi.
 - `featured=1`: hanya menampilkan produk unggulan.
-- `sort=popular`: mengurutkan berdasarkan jumlah penjualan.
+- `minPrice` dan `maxPrice`: membatasi harga minimum dan maksimum dalam rupiah.
+- `sort`: `popular`, `latest`, `price_asc`, atau `price_desc`.
 - `limit`: membatasi jumlah hasil, maksimal 50.
 
 ### Endpoint admin
@@ -310,7 +315,7 @@ Proyek ini dibuat untuk pembelajaran dan demonstrasi lokal. Beberapa hal yang pe
 - Kredensial admin bawaan harus diganti pada penggunaan nyata.
 - `JWT_SECRET` bawaan tidak boleh digunakan di production.
 - Proses pembayaran masih berupa simulasi; belum terhubung ke payment gateway.
-- Keranjang dan wishlist disimpan di `localStorage` browser, bukan di database.
+- Keranjang dan wishlist setiap akun dipisahkan berdasarkan ID pengguna di `localStorage` browser; data tamu memakai namespace terpisah.
 - Belum tersedia fitur reset kata sandi, verifikasi email, dan manajemen status pesanan melalui UI.
 - SQLite melalui `sql.js` sesuai untuk tugas dan aplikasi kecil, tetapi deployment berskala besar sebaiknya menggunakan database server yang sesuai.
 - Validasi produksi tambahan, rate limiting, logging terstruktur, dan konfigurasi HTTPS masih diperlukan untuk deployment publik.

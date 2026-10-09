@@ -11,6 +11,8 @@ const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const DB_FILE = path.join(DATA_DIR, "falstore.sqlite");
 const UPLOAD_DIR = path.join(ROOT, "uploads");
+const DEFAULT_PRODUCT_IMAGE = "/img/product01.png";
+const DEFAULT_PRODUCT_IMAGE_FILE = path.join(ROOT, "img", "product01.png");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -197,7 +199,10 @@ const ready = db.init().then(() => {
       seedProducts.forEach((product) => insert.run(...product)),
     );
   }
-  if (!db.prepare("SELECT id FROM users WHERE email = ?").get(ADMIN_EMAIL)) {
+  const admin = db
+    .prepare("SELECT id, password_hash, role FROM users WHERE email = ?")
+    .get(ADMIN_EMAIL);
+  if (!admin) {
     db.prepare(
       "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
     ).run(
@@ -206,6 +211,13 @@ const ready = db.init().then(() => {
       bcrypt.hashSync(ADMIN_PASSWORD, 12),
       "admin",
     );
+  } else if (
+    admin.role !== "admin" ||
+    !bcrypt.compareSync(ADMIN_PASSWORD, admin.password_hash)
+  ) {
+    db.prepare(
+      "UPDATE users SET password_hash = ?, role = 'admin' WHERE id = ?",
+    ).run(bcrypt.hashSync(ADMIN_PASSWORD, 12), admin.id);
   }
   return db;
 });
@@ -214,7 +226,10 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(UPLOAD_DIR, { fallthrough: false }));
+app.use("/uploads", express.static(UPLOAD_DIR));
+app.get("/uploads/:filename", (_req, res) =>
+  res.sendFile(DEFAULT_PRODUCT_IMAGE_FILE),
+);
 app.use((req, res, next) => {
   const blocked =
     /^\/(?:data|server\.js|package(?:\.json|-lock\.json)?|scripts)(?:\/|$)/i;
@@ -252,10 +267,19 @@ function publicUser(user) {
     createdAt: user.created_at,
   };
 }
+function productImage(image) {
+  const value = String(image || "").trim();
+  if (!value.startsWith("/uploads/")) return value || DEFAULT_PRODUCT_IMAGE;
+  const filename = path.basename(value);
+  return filename && fs.existsSync(path.join(UPLOAD_DIR, filename))
+    ? value
+    : DEFAULT_PRODUCT_IMAGE;
+}
 function publicProduct(product) {
   const { sales_count, ...rest } = product;
   return {
     ...rest,
+    image: productImage(rest.image),
     salesCount: Number(sales_count || 0),
     isFeatured: Boolean(product.is_featured),
     createdAt: product.created_at,
@@ -406,14 +430,35 @@ app.get("/api/products", (req, res) => {
     params.push(q, q);
   }
   if (req.query.featured === "1") conditions.push("p.is_featured = 1");
+  const parsePrice = (value) => {
+    if (value == null || value === "") return null;
+    const price = Number(value);
+    return Number.isInteger(price) && price >= 0 ? price : null;
+  };
+  const minPrice = parsePrice(req.query.minPrice);
+  const maxPrice = parsePrice(req.query.maxPrice);
+  if (minPrice !== null) {
+    conditions.push("p.price >= ?");
+    params.push(minPrice);
+  }
+  if (maxPrice !== null) {
+    conditions.push("p.price <= ?");
+    params.push(maxPrice);
+  }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const popular = req.query.sort === "popular";
+  const sort = String(req.query.sort || "latest");
+  const popular = sort === "popular";
   const select = popular
     ? "SELECT p.*, COALESCE(SUM(oi.quantity), 0) AS sales_count FROM products p LEFT JOIN order_items oi ON oi.product_id = p.id"
     : "SELECT p.* FROM products p";
-  const order = popular
-    ? "ORDER BY sales_count DESC, p.created_at DESC, p.id DESC"
-    : "ORDER BY p.created_at DESC, p.id DESC";
+  const order =
+    sort === "price_asc"
+      ? "ORDER BY p.price ASC, p.id DESC"
+      : sort === "price_desc"
+        ? "ORDER BY p.price DESC, p.id DESC"
+        : popular
+          ? "ORDER BY sales_count DESC, p.created_at DESC, p.id DESC"
+          : "ORDER BY p.created_at DESC, p.id DESC";
   const limit =
     Number.isInteger(Number(req.query.limit)) && Number(req.query.limit) > 0
       ? Math.min(Number(req.query.limit), 50)

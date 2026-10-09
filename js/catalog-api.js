@@ -19,7 +19,7 @@
   const widget = (product) =>
     `<div><div class="product-widget"><div class="product-img"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}"></div><div class="product-body"><p class="product-category">${escapeHtml(product.category)}</p><h3 class="product-name"><a href="product.html?id=${product.id}">${escapeHtml(product.name)}</a></h3><h4 class="product-price">${money(product.price)}</h4></div></div></div>`;
   const bind = (products) => {
-    document.querySelectorAll("[data-product-id]").forEach(
+    document.querySelectorAll(".product .add-to-wishlist, .product .add-to-cart-btn").forEach(
       (button) =>
         (button.onclick = (event) => {
           event.preventDefault();
@@ -38,6 +38,91 @@
           else window.FalstoreCartAdd?.(cartProduct);
         }),
     );
+  };
+  const navigateWithFilters = (changes) => {
+    const params = new URLSearchParams(location.search);
+    Object.entries(changes).forEach(([name, value]) => {
+      if (name === "category") {
+        params.delete("kategori");
+        params.delete("category");
+        if (value) params.set("kategori", value);
+        return;
+      }
+      if (value == null || value === "") params.delete(name);
+      else params.set(name, String(value));
+    });
+    const query = params.toString();
+    location.href = "store.html" + (query ? `?${query}` : "");
+  };
+  const setupFilters = () => {
+    const store = document.querySelector("#store");
+    if (!store) return;
+    const params = new URLSearchParams(location.search);
+    const selects = store.querySelectorAll(".store-sort select");
+    const sortSelect = selects[0];
+    const limitSelect = selects[1];
+    if (sortSelect) {
+      sortSelect.value = params.get("sort") || "popular";
+      sortSelect.addEventListener("change", () =>
+        navigateWithFilters({ sort: sortSelect.value }),
+      );
+    }
+    if (limitSelect) {
+      limitSelect.value = params.get("limit") || "20";
+      limitSelect.addEventListener("change", () =>
+        navigateWithFilters({ limit: limitSelect.value }),
+      );
+    }
+    const category = params.get("kategori") || params.get("category") || "";
+    document.querySelectorAll("#aside input[data-category]").forEach((input) => {
+      input.checked = input.dataset.category === category;
+      input.addEventListener("change", () => {
+        if (input.checked) navigateWithFilters({ category: input.dataset.category });
+        else if (category === input.dataset.category)
+          navigateWithFilters({ category: null });
+      });
+    });
+    const minInput = document.querySelector("#price-min");
+    const maxInput = document.querySelector("#price-max");
+    const priceSlider = document.querySelector("#price-slider");
+    const minPrice = params.has("minPrice")
+      ? Number(params.get("minPrice"))
+      : NaN;
+    const maxPrice = params.has("maxPrice")
+      ? Number(params.get("maxPrice"))
+      : NaN;
+    const rangeMin = 0;
+    const rangeMax = 20000000;
+    const boundedMin = Number.isFinite(minPrice)
+      ? Math.max(rangeMin, Math.min(rangeMax, minPrice))
+      : rangeMin;
+    const boundedMax = Number.isFinite(maxPrice)
+      ? Math.max(rangeMin, Math.min(rangeMax, maxPrice))
+      : rangeMax;
+    const selectedMin = Math.min(boundedMin, boundedMax);
+    const selectedMax = Math.max(boundedMin, boundedMax);
+    if (minInput) minInput.value = selectedMin;
+    if (maxInput) maxInput.value = selectedMax;
+    const applyPrice = () => {
+      const min = Number(minInput?.value);
+      const max = Number(maxInput?.value);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+      navigateWithFilters({
+        minPrice: Math.min(min, max),
+        maxPrice: Math.max(min, max),
+      });
+    };
+    minInput?.addEventListener("change", applyPrice);
+    maxInput?.addEventListener("change", applyPrice);
+    if (priceSlider?.noUiSlider) {
+      priceSlider.noUiSlider.set([selectedMin, selectedMax]);
+      priceSlider.noUiSlider.on("set", (values) =>
+        navigateWithFilters({
+          minPrice: Math.round(Number(values[0])),
+          maxPrice: Math.round(Number(values[1])),
+        }),
+      );
+    }
   };
   const renderPopularWidgets = async () => {
     const sliders = document.querySelectorAll(".backend-products-widget");
@@ -73,6 +158,11 @@
     const category = params.get("kategori") || params.get("category");
     if (category) query.set("category", category);
     if (params.get("q")) query.set("search", params.get("q"));
+    if (params.has("minPrice")) query.set("minPrice", params.get("minPrice"));
+    if (params.has("maxPrice")) query.set("maxPrice", params.get("maxPrice"));
+    query.set("sort", params.get("sort") || "popular");
+    query.set("limit", params.get("limit") || "20");
+    setupFilters();
     try {
       const response = await fetch("/api/products?" + query.toString());
       if (!response.ok) return;
@@ -99,6 +189,10 @@
           ? `${products.length} produk ditemukan${params.get("q") ? ` untuk "${params.get("q")}"` : ""}.`
           : "Tidak ada produk yang cocok dengan pencarian Anda.";
         store.parentElement.insertBefore(summary, store);
+        document.querySelectorAll(".store-qty").forEach(
+          (element) =>
+            (element.textContent = `Menampilkan ${products.length} produk`),
+        );
       }
       document.querySelectorAll(".products-slick").forEach((slider) => {
         if (window.jQuery && jQuery(slider).hasClass("slick-initialized"))
