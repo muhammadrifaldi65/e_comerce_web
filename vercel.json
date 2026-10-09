@@ -3,6 +3,9 @@
   "functions": {
     "api/index.js": {
       "includeFiles": "public/**"
+    },
+    "api/[...path].js": {
+      "includeFiles": "public/**"
     }
   }
 }

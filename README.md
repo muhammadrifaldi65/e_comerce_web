@@ -169,7 +169,7 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
 File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
 ## Deployment ke Vercel
 
-Project sudah memiliki `api/index.js` sebagai adapter Express dan `vercel.json` sebagai konfigurasi routing. Deploy dapat dilakukan dengan dua cara:
+Project sudah memiliki `api/[...path].js` sebagai catch-all Express Function dan `vercel.json` sebagai konfigurasi routing. Deploy dapat dilakukan dengan dua cara:
 
 1. Push repository ke GitHub, lalu import repository tersebut di Vercel.
 2. Atau gunakan CLI:
@@ -211,7 +211,8 @@ Gunakan kredensial yang berbeda untuk deployment publik. Pelanggan baru dapat me
 ```text
 .
 ├── api/
-│   └── index.js              # Adapter Express untuk Vercel Function
+│   ├── index.js              # Handler Express untuk Vercel Function
+│   └── [...path].js          # Catch-all untuk semua endpoint /api/*
 ├── public/
 │   ├── admin.html            # Dashboard administrator
 │   ├── account.html          # Login, registrasi, dan profil pengguna
