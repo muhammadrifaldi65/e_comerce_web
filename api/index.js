@@ -1,8 +1,8 @@
-let runtime;
+let app;
 let loadError;
 
 try {
-  runtime = require("../server");
+  app = require("../server");
 } catch (error) {
   loadError = error;
 }
@@ -10,8 +10,8 @@ try {
 module.exports = async function handler(req, res) {
   try {
     if (loadError) throw loadError;
-    await runtime.ready;
-    return runtime.app(req, res);
+    await app.ready;
+    return app(req, res);
   } catch (error) {
     console.error(error);
     if (res.headersSent) return;

@@ -257,6 +257,9 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use((_req, _res, next) => {
+  ready.then(() => next()).catch(next);
+});
 app.get("/uploads/:filename", async (req, res, next) => {
   const filename = path.basename(req.params.filename);
   if (filename !== req.params.filename) return res.status(404).end();
@@ -909,5 +912,7 @@ async function start() {
     console.log(`Falstore berjalan di http://localhost:${PORT}`),
   );
 }
-if (require.main === module) start();
-module.exports = { app, db, ready, start };
+app.ready = ready;
+app.db = db;
+app.start = start;
+module.exports = app;
