@@ -2,7 +2,7 @@
   "name": "falstore-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Backend e-commerce Falstore dengan autentikasi, produk, upload, dan Neon PostgreSQL.",
+  "description": "Backend e-commerce Falstore dengan autentikasi, produk, upload ImageKit, dan Neon PostgreSQL.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

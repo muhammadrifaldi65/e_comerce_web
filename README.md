@@ -15,7 +15,7 @@ Aplikasi web e-commerce sederhana untuk penjualan alat elektronik. Proyek ini di
 
 Falstore menyediakan katalog produk elektronik dengan halaman beranda, katalog, detail produk, keranjang belanja, wishlist, checkout, akun pengguna, dan dashboard admin.
 
-Aplikasi menggunakan frontend berbasis HTML, CSS, dan JavaScript serta backend Node.js dengan Express. Data pengguna, produk, pesanan, dan item pesanan disimpan di Neon PostgreSQL melalui driver `pg`. File SQLite lokal tidak digunakan oleh server.
+Aplikasi menggunakan frontend berbasis HTML, CSS, dan JavaScript serta backend Node.js dengan Express. Data pengguna, produk, pesanan, dan item pesanan disimpan di Neon PostgreSQL melalui driver `pg`. Gambar produk diunggah ke ImageKit dan frontend menggunakan URL delivery ImageKit langsung untuk sementara. File SQLite lokal tidak digunakan oleh server.
 
 ## Tujuan Pembelajaran
 
@@ -69,7 +69,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 | Database        | Neon PostgreSQL melalui `pg`                       |
 | Autentikasi     | JSON Web Token (`jsonwebtoken`)                             |
 | Hash kata sandi | `bcryptjs`                                                  |
-| Upload file     | `multer`                                                    |
+| Upload file     | `multer` dan ImageKit REST API                           |
 | Frontend        | HTML5, CSS3, JavaScript browser                             |
 | UI pendukung    | Bootstrap, Font Awesome, jQuery, Slick Carousel, noUiSlider |
 
@@ -116,8 +116,8 @@ npm --version
    http://localhost:3000
    ```
 
-Saat pertama kali dijalankan, server membuat tabel dan seed katalog di database Neon, lalu membuat atau menyinkronkan akun admin dari environment. Folder `uploads/` tetap digunakan untuk menyimpan gambar yang diunggah melalui dashboard admin.
-Jika file upload terhapus atau tidak tersedia, API dan URL gambar akan menggunakan gambar produk bawaan (`/img/product01.png`) agar katalog tidak menghasilkan error `ENOENT`.
+Saat pertama kali dijalankan, server membuat tabel dan seed katalog di database Neon, lalu membuat atau menyinkronkan akun admin dari environment. Gambar yang diunggah melalui dashboard disimpan di ImageKit.
+Gambar baru dikirim langsung menggunakan URL delivery ImageKit agar tidak bergantung pada proxy backend. Path internal `/uploads/<nama-file>` tetap tersedia sebagai fallback untuk data lama, tetapi dapat mengalami timeout jika server tidak dapat mengakses CDN ImageKit.
 
 
 ## Perintah yang Tersedia
@@ -152,9 +152,11 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
    | `DATABASE_URL`   | `postgresql://user:password@host/neondb?sslmode=require` | Connection string database Neon        |
    | `JWT_SECRET`     | `secret-jwt-yang-kuat`                                   | Secret untuk menandatangani token JWT  |
    | `ADMIN_EMAIL`    | `admin@example.com`                                      | Email akun admin awal                  |
-   | `ADMIN_PASSWORD` | `password-admin-yang-kuat`                              | Kata sandi akun admin awal             |
+   | `ADMIN_PASSWORD`       | `password-admin-yang-kuat`                              | Kata sandi akun admin awal                  |
+   | `IMAGEKIT_PRIVATE_KEY` | `private-key-imagekit`                                  | Private key ImageKit untuk upload dan hapus |
+   | `IMAGEKIT_FOLDER`      | `/falstore/products`                                    | Folder penyimpanan di ImageKit              |
 
-   `DATABASE_URL` wajib menggunakan connection string Neon. Server tidak lagi membaca `data/falstore.sqlite`. Jangan commit connection string atau secret.
+`DATABASE_URL` wajib menggunakan connection string Neon. `IMAGEKIT_PRIVATE_KEY` hanya boleh disimpan sebagai environment variable rahasia. Server tidak lagi membaca `data/falstore.sqlite`. Jangan commit connection string atau secret.
 
 3. Jalankan server:
 
@@ -165,6 +167,32 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
    Pada startup pertama, schema, lima produk demo, dan akun admin dibuat di Neon. Jika akun admin sudah ada, `ADMIN_PASSWORD` akan disinkronkan saat server dijalankan ulang. Setelah mengubah `.env`, restart server sebelum mencoba login.
 
 File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
+## Deployment ke Vercel
+
+Project sudah memiliki `api/index.js` sebagai adapter Express dan `vercel.json` sebagai konfigurasi routing. Deploy dapat dilakukan dengan dua cara:
+
+1. Push repository ke GitHub, lalu import repository tersebut di Vercel.
+2. Atau gunakan CLI:
+
+   ```bash
+   npx vercel
+   ```
+
+Pada Vercel, isi environment variables berikut di Project Settings → Environment Variables:
+
+```text
+DATABASE_URL
+JWT_SECRET
+ADMIN_EMAIL
+ADMIN_PASSWORD
+IMAGEKIT_PRIVATE_KEY
+IMAGEKIT_FOLDER
+```
+
+`PORT` tidak wajib di Vercel karena server menggunakan port default saat dijalankan sebagai Function. Jangan upload `.env` ke Vercel atau repository. Neon menyimpan data secara persisten, sedangkan upload gambar menggunakan ImageKit sehingga tidak bergantung pada filesystem Vercel.
+
+Setelah deployment selesai, buka URL Vercel dan uji login admin, katalog, checkout, serta upload gambar.
+
 
 ## Akun Demo
 
@@ -182,34 +210,26 @@ Gunakan kredensial yang berbeda untuk deployment publik. Pelanggan baru dapat me
 
 ```text
 .
-├── admin.html                # Dashboard administrator
-├── account.html              # Login, registrasi, dan profil pengguna
-├── cart.html                 # Keranjang belanja
-├── checkout.html             # Form checkout
-├── contact.html              # Halaman kontak
-├── index.html                # Halaman beranda
-├── product.html              # Halaman detail produk
-├── store.html                # Halaman katalog
-├── wishlist.html             # Daftar keinginan
+├── api/
+│   └── index.js              # Adapter Express untuk Vercel Function
+├── public/
+│   ├── admin.html            # Dashboard administrator
+│   ├── account.html          # Login, registrasi, dan profil pengguna
+│   ├── cart.html             # Keranjang belanja
+│   ├── checkout.html         # Form checkout
+│   ├── contact.html          # Halaman kontak
+│   ├── index.html            # Halaman beranda
+│   ├── product.html          # Halaman detail produk
+│   ├── store.html            # Halaman katalog
+│   ├── wishlist.html         # Daftar keinginan
+│   ├── css/                  # Style aplikasi
+│   ├── js/                   # JavaScript frontend
+│   ├── img/                  # Logo dan aset gambar produk
+│   └── fonts/                # Font yang digunakan UI
 ├── server.js                 # Server Express, database, auth, dan API
-├── package.json               # Konfigurasi proyek dan dependency
+├── package.json              # Konfigurasi proyek dan dependency
 ├── .env.example              # Template konfigurasi environment
-├── uploads/                  # Gambar hasil upload admin
-├── css/
-│   ├── style.css             # Style utama aplikasi
-│   └── *.min.css              # Library CSS pendukung
-├── js/
-│   ├── auth.js               # Login, registrasi, dan sesi pengguna
-│   ├── catalog-api.js        # Pengambilan dan render katalog dari API
-│   ├── checkout-api.js       # Pengiriman pesanan ke API
-│   ├── falstore.js           # Keranjang dan wishlist berbasis browser
-│   ├── product-api.js        # Data detail produk dari API
-│   ├── search-ui.js          # Form pencarian dan kategori
-│   ├── bahasa-indonesia.js   # Lokalisasi antarmuka
-│   ├── currency.js           # Format mata uang Rupiah
-│   └── main.js               # Interaksi UI dan plugin frontend
-├── img/                      # Logo dan aset gambar produk
-├── fonts/                    # Font yang digunakan UI
+├── vercel.json               # Routing deployment Vercel
 └── scripts/
     └── smoke-test.js         # Pengujian alur utama backend
 ```
@@ -294,7 +314,7 @@ Smoke test menjalankan server sementara dan memeriksa alur penting berikut:
 - Endpoint admin menolak request tanpa autentikasi.
 - Login admin.
 - Create, update, dan delete produk.
-- Upload gambar produk.
+- Upload gambar ke ImageKit melalui endpoint admin.
 
 Jalankan dengan:
 
@@ -318,7 +338,7 @@ Proyek ini dibuat untuk pembelajaran dan demonstrasi lokal. Beberapa hal yang pe
 - Keranjang dan wishlist setiap akun dipisahkan berdasarkan ID pengguna di `localStorage` browser; data tamu memakai namespace terpisah.
 - Belum tersedia fitur reset kata sandi, verifikasi email, dan manajemen status pesanan melalui UI.
 - Neon PostgreSQL digunakan sebagai database terpusat; SQLite lokal tidak digunakan saat login maupun operasi API.
-- Validasi produksi tambahan, rate limiting, logging terstruktur, dan konfigurasi HTTPS masih diperlukan untuk deployment publik.
+- URL delivery ImageKit digunakan langsung oleh frontend untuk sementara; endpoint proxy internal tetap tersedia untuk kompatibilitas data lama.
 
 ## Lisensi
 

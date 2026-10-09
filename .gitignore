@@ -1,14 +1,14 @@
 # Dependency hasil instalasi npm
 node_modules/
+.vercel/
 
 # Environment variable dan secret lokal
 .env
 .env.*
 !.env.example
 
-# File upload yang dibuat saat aplikasi berjalan
+# Arsip upload lokal lama; upload baru disimpan di ImageKit
 /uploads/
-
 # Log dan output debug
 *.log
 npm-debug.log*

@@ -6,9 +6,10 @@ const path = require("node:path");
 const databaseUrl = process.env.DATABASE_URL;
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
-if (!databaseUrl || !adminEmail || !adminPassword) {
+const imageKitPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+if (!databaseUrl || !adminEmail || !adminPassword || !imageKitPrivateKey) {
   throw new Error(
-    "Konfigurasi environment belum lengkap. Isi DATABASE_URL, ADMIN_EMAIL, dan ADMIN_PASSWORD.",
+    "Konfigurasi environment belum lengkap. Isi DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD, dan IMAGEKIT_PRIVATE_KEY.",
   );
 }
 
@@ -96,22 +97,39 @@ const request = async (url, options) => {
     const form = new FormData();
     form.append(
       "image",
-      new Blob([Buffer.from("smoke")], { type: "image/png" }),
-      "smoke.png",
+      new Blob(
+        [fs.readFileSync(path.join(__dirname, "..", "img", "product01.png"))],
+        { type: "image/png" },
+      ),
+      "product01.png",
     );
     const uploaded = await request("/api/admin/uploads/image", {
       method: "POST",
       headers: { Authorization: `Bearer ${login.body.token}` },
       body: form,
     });
-    if (uploaded.response.status !== 201)
-      throw new Error("Upload gambar gagal.");
-    const imageFile = path.join(
-      __dirname,
-      "..",
-      uploaded.body.url.replace("/uploads/", "uploads/"),
+    if (
+      uploaded.response.status !== 201 ||
+      !uploaded.body?.url?.startsWith("https://") ||
+      !uploaded.body?.path?.startsWith("/uploads/")
+    )
+      throw new Error("Upload gambar ImageKit gagal.");
+    const attached = await request(
+      `/api/admin/products/${created.body.product.id}`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          ...updated.body.product,
+          image: uploaded.body.url,
+        }),
+      },
     );
-    if (fs.existsSync(imageFile)) fs.unlinkSync(imageFile);
+    if (
+      attached.response.status !== 200 ||
+      attached.body?.product?.image !== uploaded.body.url
+    )
+      throw new Error("URL gambar ImageKit gagal disimpan.");
     const removed = await request(
       `/api/admin/products/${created.body.product.id}`,
       {
