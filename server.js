@@ -7,6 +7,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const { Pool } = require("pg");
+const payments = require('./api/payments');
+const commerce = require('./api/commerce');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
@@ -121,7 +123,6 @@ const ready = db.init().then(async () => {
       name TEXT NOT NULL,
       slug TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL DEFAULT '',
-      category TEXT NOT NULL DEFAULT 'aksesori',
       price INTEGER NOT NULL CHECK (price >= 0),
       old_price INTEGER,
       stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
@@ -165,6 +166,8 @@ const ready = db.init().then(async () => {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
     );
   `);
+  await payments.migrate(db);
+  await commerce.migrate(db);
   const seedProducts = [
     [
       "Laptop Pro 14 inci",
@@ -225,9 +228,13 @@ const ready = db.init().then(async () => {
   if (Number((await db.prepare("SELECT COUNT(*) AS count FROM products").get()).count) === 0) {
     await db.transaction(async (tx) => {
       const insert = tx.prepare(
-        "INSERT INTO products (name, slug, description, category, price, old_price, stock, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO products (name, slug, description, category_id, price, old_price, stock, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
-      for (const product of seedProducts) await insert.run(...product);
+      for (const product of seedProducts) {
+        let category = await tx.prepare('SELECT id FROM categories WHERE slug = ?').get(product[3]);
+        if (!category) category = await tx.prepare('INSERT INTO categories(name,slug) VALUES (?,?) RETURNING id').get(product[3],product[3]);
+        await insert.run(...product.slice(0,3),category.id,...product.slice(4));
+      }
     });
   }
   const admin = await db
@@ -301,7 +308,7 @@ app.use(express.static(PUBLIC_DIR, { index: "index.html" }));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: (_req, file, cb) =>
     cb(
       null,
@@ -396,6 +403,11 @@ async function publicProduct(product) {
   const { sales_count, ...rest } = product;
   return {
     ...rest,
+    categoryId: product.category_id,
+    categoryName: product.category_name,
+    brandId: product.brand_id,
+    brandName: product.brand_name || null,
+    oldPrice: product.old_price,
     image: await productImage(rest.image),
     salesCount: Number(sales_count || 0),
     isFeatured: Boolean(product.is_featured),
@@ -439,22 +451,24 @@ function adminOnly(req, res, next) {
 }
 function validateProduct(body) {
   const name = String(body.name || "").trim();
-  const category = String(body.category || "aksesori")
-    .trim()
-    .toLowerCase();
+  const categoryId = Number(body.categoryId);
+  const brandId = body.brandId == null || body.brandId === '' ? null : Number(body.brandId);
   const price = Number(body.price);
   const oldPrice =
     body.oldPrice === "" || body.oldPrice == null
       ? null
       : Number(body.oldPrice);
   const stock = Number(body.stock);
+  const image = String(body.image || DEFAULT_PRODUCT_IMAGE).trim();
+  if (image.length > 2000 || /[\\\s\x00-\x1f\x7f]/.test(image) || (!/^\/(?!\/)/.test(image) && !/^https:\/\//i.test(image)))
+    return {error:'Gambar harus memakai path internal atau HTTPS.'};
   if (
     !name ||
-    !Number.isInteger(price) ||
-    price < 0 ||
-    (oldPrice !== null && (!Number.isInteger(oldPrice) || oldPrice < 0)) ||
-    !Number.isInteger(stock) ||
-    stock < 0
+    !Number.isInteger(categoryId) || categoryId < 1 || categoryId > 2147483647 ||
+    (brandId !== null && (!Number.isInteger(brandId) || brandId < 1 || brandId > 2147483647)) ||
+    !Number.isInteger(price) || price < 1 || price > 2147483647 ||
+    (oldPrice !== null && (!Number.isInteger(oldPrice) || oldPrice < 0 || oldPrice > 2147483647)) ||
+    !Number.isInteger(stock) || stock > 2147483647 || stock < 0
   )
     return {
       error:
@@ -469,11 +483,12 @@ function validateProduct(body) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, ""),
       description: String(body.description || "").trim(),
-      category,
+      categoryId,
+      brandId,
       price,
       oldPrice,
       stock,
-      image: String(body.image || "/img/product01.png").trim(),
+      image,
       isFeatured: Boolean(body.isFeatured),
     },
   };
@@ -564,57 +579,8 @@ app.get("/api/auth/me", auth(), (req, res) =>
 
 app.get("/api/products", async (req, res, next) => {
   try {
-    const params = [];
-    const conditions = [];
-    if (req.query.category) {
-      conditions.push("p.category = ?");
-      params.push(String(req.query.category).toLowerCase());
-    }
-    if (req.query.search) {
-      conditions.push("(p.name ILIKE ? OR p.description ILIKE ?)");
-      const q = `%${String(req.query.search)}%`;
-      params.push(q, q);
-    }
-    if (req.query.featured === "1") conditions.push("p.is_featured = 1");
-    const parsePrice = (value) => {
-      if (value == null || value === "") return null;
-      const price = Number(value);
-      return Number.isInteger(price) && price >= 0 ? price : null;
-    };
-    const minPrice = parsePrice(req.query.minPrice);
-    const maxPrice = parsePrice(req.query.maxPrice);
-    if (minPrice !== null) {
-      conditions.push("p.price >= ?");
-      params.push(minPrice);
-    }
-    if (maxPrice !== null) {
-      conditions.push("p.price <= ?");
-      params.push(maxPrice);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const sort = String(req.query.sort || "latest");
-    const popular = sort === "popular";
-    const select = popular
-      ? "SELECT p.*, COALESCE(SUM(oi.quantity), 0) AS sales_count FROM products p LEFT JOIN order_items oi ON oi.product_id = p.id"
-      : "SELECT p.* FROM products p";
-    const order =
-      sort === "price_asc"
-        ? "ORDER BY p.price ASC, p.id DESC"
-        : sort === "price_desc"
-          ? "ORDER BY p.price DESC, p.id DESC"
-          : popular
-            ? "ORDER BY sales_count DESC, p.created_at DESC, p.id DESC"
-            : "ORDER BY p.created_at DESC, p.id DESC";
-    const limit =
-      Number.isInteger(Number(req.query.limit)) && Number(req.query.limit) > 0
-        ? Math.min(Number(req.query.limit), 50)
-        : null;
-    const sql = `${select} ${where} ${popular ? "GROUP BY p.id" : ""} ${order}${limit ? " LIMIT ?" : ""}`;
-    if (limit) params.push(limit);
-    const products = await Promise.all(
-      (await db.prepare(sql).all(...params)).map(publicProduct),
-    );
-    res.json({ products });
+    const result = await commerce.listProducts(db,req.query);
+    res.json({...result,products:await Promise.all(result.products.map(publicProduct))});
   } catch (error) {
     next(error);
   }
@@ -622,12 +588,10 @@ app.get("/api/products", async (req, res, next) => {
 app.get("/api/products/:idOrSlug", async (req, res, next) => {
   try {
     const key = req.params.idOrSlug;
-    const product = /^\d+$/.test(key)
-      ? await db.prepare("SELECT * FROM products WHERE id = ?").get(Number(key))
-      : await db.prepare("SELECT * FROM products WHERE slug = ?").get(key);
+    const product = await commerce.getProduct(db,key);
     if (!product)
       return res.status(404).json({ error: "Produk tidak ditemukan." });
-    res.json({ product: await publicProduct(product) });
+    res.json({ product: await publicProduct({...product,...commerce.priceProduct(product,await commerce.loadPromotions(db))}) });
   } catch (error) {
     next(error);
   }
@@ -644,32 +608,31 @@ app.get("/api/admin/stats", async (_req, res, next) => {
       db.prepare("SELECT COUNT(*)::int AS count FROM orders").get(),
       db
         .prepare(
-          "SELECT COALESCE(SUM(total), 0)::int AS total FROM orders WHERE status != 'cancelled'",
+          "SELECT COALESCE(SUM(total), 0)::bigint AS total FROM orders WHERE payment_status = 'paid'",
         )
         .get(),
     ]);
+    const lowStock = await db.prepare('SELECT id,name,stock FROM products WHERE stock <= 5 ORDER BY stock,id').all();
+    const counts = await db.prepare('SELECT status,COUNT(*)::int AS count FROM orders GROUP BY status').all();
     res.json({
       stats: {
         products: products.count,
         customers: customers.count,
         orders: orders.count,
         revenue: revenue.total,
+        lowStock,
+        orderCounts: Object.fromEntries(counts.map(row => [row.status,row.count])),
       },
     });
   } catch (error) {
     next(error);
   }
 });
-app.get("/api/admin/products", async (_req, res, next) => {
+app.get("/api/admin/products", async (req, res, next) => {
   try {
-    const products = await db
-      .prepare("SELECT * FROM products ORDER BY id DESC")
-      .all();
-    res.json({ products: await Promise.all(products.map(publicProduct)) });
-
-  } catch (error) {
-    next(error);
-  }
+    const result = await commerce.listProducts(db,req.query,true);
+    res.json({...result,products:await Promise.all(result.products.map(publicProduct))});
+  } catch (error) { next(error); }
 });
 app.post("/api/admin/products", async (req, res, next) => {
   try {
@@ -678,13 +641,14 @@ app.post("/api/admin/products", async (req, res, next) => {
     const p = parsed.value;
     const result = await db
       .prepare(
-        "INSERT INTO products (name, slug, description, category, price, old_price, stock, image, is_featured, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+        "INSERT INTO products (name, slug, description, category_id, brand_id, price, old_price, stock, image, is_featured, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
       )
       .run(
         p.name,
         p.slug,
         p.description,
-        p.category,
+        p.categoryId,
+        p.brandId,
         p.price,
         p.oldPrice,
         p.stock,
@@ -693,9 +657,7 @@ app.post("/api/admin/products", async (req, res, next) => {
       );
     res.status(201).json({
       product: await publicProduct(
-        await db
-          .prepare("SELECT * FROM products WHERE id = ?")
-          .get(result.lastInsertRowid),
+        await commerce.getProduct(db,result.lastInsertRowid),
       ),
     });
   } catch (error) {
@@ -706,39 +668,27 @@ app.post("/api/admin/products", async (req, res, next) => {
 });
 app.put("/api/admin/products/:id", async (req, res, next) => {
   try {
-    const current = await db
-      .prepare("SELECT * FROM products WHERE id = ?")
-      .get(Number(req.params.id));
-    if (!current)
-      return res.status(404).json({ error: "Produk tidak ditemukan." });
-    const parsed = validateProduct({
-      ...current,
-      ...req.body,
-      oldPrice: req.body.oldPrice ?? current.old_price,
-      isFeatured: req.body.isFeatured ?? Boolean(current.is_featured),
+    const result = await db.transaction(async tx => {
+      const current = await tx.prepare('SELECT * FROM products WHERE id = ? FOR UPDATE').get(commerce.integer(req.params.id));
+      if (!current) throw Object.assign(new Error('Produk tidak ditemukan.'), {statusCode:404,publicMessage:'Produk tidak ditemukan.'});
+      const parsed = validateProduct({
+        ...current,
+        categoryId:current.category_id,
+        brandId:current.brand_id,
+        ...req.body,
+        stock:req.body.stock === undefined ? current.stock : req.body.stock,
+        oldPrice:req.body.oldPrice === undefined ? current.old_price : req.body.oldPrice,
+        isFeatured:req.body.isFeatured ?? Boolean(current.is_featured),
+      });
+      if (parsed.error) throw Object.assign(new Error(parsed.error), {statusCode:400,publicMessage:parsed.error});
+      const p = parsed.value;
+      await tx.prepare('UPDATE products SET name = ?, slug = ?, description = ?, category_id = ?, brand_id = ?, price = ?, old_price = ?, stock = ?, image = ?, is_featured = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        p.name,p.slug,p.description,p.categoryId,p.brandId,p.price,p.oldPrice,p.stock,p.image,p.isFeatured ? 1 : 0,current.id,
+      );
+      return {product:await commerce.getProduct(tx,current.id),oldImage:current.image !== p.image ? current.image : null};
     });
-    if (parsed.error) return res.status(400).json({ error: parsed.error });
-    const p = parsed.value;
-    await db.prepare(
-      "UPDATE products SET name = ?, slug = ?, description = ?, category = ?, price = ?, old_price = ?, stock = ?, image = ?, is_featured = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    ).run(
-      p.name,
-      p.slug,
-      p.description,
-      p.category,
-      p.price,
-      p.oldPrice,
-      p.stock,
-      p.image,
-      p.isFeatured ? 1 : 0,
-      current.id,
-    );
-    if (current.image !== p.image) await removeUploadedImage(current.image);
-    res.json({
-      product: await publicProduct(
-        await db.prepare("SELECT * FROM products WHERE id = ?").get(current.id),
-      ),
-    });
+    if (result.oldImage) await removeUploadedImage(result.oldImage);
+    res.json({product:await publicProduct(result.product)});
   } catch (error) {
     if (String(error.message).includes("UNIQUE"))
       return res.status(409).json({ error: "Slug produk sudah digunakan." });
@@ -780,130 +730,25 @@ app.post(
     }
   },
 );
-app.get("/api/admin/orders", async (_req, res, next) => {
-  try {
-    res.json({
-      orders: await db
-        .prepare(
-          "SELECT o.*, u.name AS account_name FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.id DESC",
-        )
-        .all(),
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.post("/api/orders", auth(), async (req, res, next) => {
-  try {
-    const {
-      customerName,
-      email,
-      address,
-      city,
-      country,
-      zipCode,
-      telephone,
-      paymentMethod,
-      notes = "",
-      items,
-    } = req.body;
-    if (
-      !customerName ||
-      !email ||
-      !address ||
-      !city ||
-      !country ||
-      !zipCode ||
-      !telephone ||
-      !paymentMethod ||
-      !Array.isArray(items) ||
-      !items.length
-    )
-      return res.status(400).json({ error: "Data checkout belum lengkap." });
-    const requested = items
-      .map((item) => ({ id: Number(item.id), quantity: Number(item.quantity) }))
-      .filter(
-        (item) =>
-          Number.isInteger(item.id) &&
-          Number.isInteger(item.quantity) &&
-          item.quantity > 0,
-      );
-    if (!requested.length)
-      return res.status(400).json({ error: "Item pesanan tidak valid." });
-    const products = await Promise.all(
-      requested.map(async (item) => ({
-        ...item,
-        product: await db
-          .prepare("SELECT * FROM products WHERE id = ?")
-          .get(item.id),
-      })),
-    );
-    if (
-      products.some((item) => !item.product || item.quantity > item.product.stock)
-    )
-      return res
-        .status(400)
-        .json({ error: "Produk tidak tersedia atau stok tidak mencukupi." });
-    const total = products.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0,
-    );
-    const orderId = await db.transaction(async (tx) => {
-      const order = await tx
-        .prepare(
-          "INSERT INTO orders (user_id, customer_name, email, address, city, country, zip_code, telephone, payment_method, notes, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .run(
-          req.user.id,
-          String(customerName),
-          String(email),
-          String(address),
-          String(city),
-          String(country),
-          String(zipCode),
-          String(telephone),
-          String(paymentMethod),
-          String(notes),
-          total,
-        );
-      const addItem = tx.prepare(
-        "INSERT INTO order_items (order_id, product_id, product_name, price, quantity) VALUES (?, ?, ?, ?, ?)",
-      );
-      const reduceStock = tx.prepare(
-        "UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      );
-      for (const item of products) {
-        await addItem.run(
-          order.lastInsertRowid,
-          item.product.id,
-          item.product.name,
-          item.product.price,
-          item.quantity,
-        );
-        await reduceStock.run(item.quantity, item.product.id);
-      }
-      return order.lastInsertRowid;
-    });
-    res.status(201).json({ orderId, total });
-  } catch (error) {
-    next(error);
-  }
-});
+payments.install(app, db, auth, adminOnly);
+commerce.install(app, db, auth, adminOnly, publicProduct);
 
 app.use("/api", (_req, res) =>
   res.status(404).json({ error: "Endpoint tidak ditemukan." }),
 );
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res
-    .status(Number(error.statusCode) || 500)
-    .json({
-      error:
-        Number(error.statusCode) === 503
-          ? "Layanan gambar sedang tidak dapat diakses."
-          : "Terjadi kesalahan pada server.",
-    });
+  const status = error.code === "LIMIT_FILE_SIZE" ? 413
+    : error.code === '23503' || error.code === '23505' || error.code === '23001' ? 409
+    : Number(error.statusCode) || 500;
+  res.status(status).json({
+    error:
+      status === 413
+        ? "Ukuran gambar maksimal 4 MB."
+        : error.publicMessage || (status === 409 ? 'Data masih digunakan atau nama/slug sudah terdaftar.' : status === 503
+          ? "Layanan sedang tidak dapat diakses."
+          : "Terjadi kesalahan pada server."),
+  });
 });
 
 async function start() {
@@ -916,3 +761,9 @@ app.ready = ready;
 app.db = db;
 app.start = start;
 module.exports = app;
+if (require.main === module) {
+  start().catch(() => {
+    console.error('Server gagal dimulai. Periksa konfigurasi dan koneksi database.');
+    process.exit(1);
+  });
+}

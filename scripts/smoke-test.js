@@ -6,10 +6,10 @@ const path = require("node:path");
 const databaseUrl = process.env.DATABASE_URL;
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
-const imageKitPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-if (!databaseUrl || !adminEmail || !adminPassword || !imageKitPrivateKey) {
+const uploadEnabled = process.env.SMOKE_IMAGEKIT_UPLOAD === '1';
+if (!databaseUrl || !adminEmail || !adminPassword || (uploadEnabled && !process.env.IMAGEKIT_PRIVATE_KEY)) {
   throw new Error(
-    "Konfigurasi environment belum lengkap. Isi DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD, dan IMAGEKIT_PRIVATE_KEY.",
+    "Konfigurasi database/admin wajib; IMAGEKIT_PRIVATE_KEY hanya untuk SMOKE_IMAGEKIT_UPLOAD=1.",
   );
 }
 
@@ -64,13 +64,17 @@ const request = async (url, options) => {
       "content-type": "application/json",
     };
     const suffix = Date.now();
+    const metadata = await request('/api/catalog/meta');
+    const categoryId = metadata.body.categories.find(category => category.slug === 'aksesori')?.id;
+    if (!categoryId) throw new Error('Kategori aksesori tidak tersedia.');
     const created = await request("/api/admin/products", {
       method: "POST",
       headers,
       body: JSON.stringify({
         name: `Smoke ${suffix}`,
         slug: `smoke-${suffix}`,
-        category: "aksesori",
+        categoryId,
+        brandId: null,
         price: 1000,
         stock: 2,
         description: "smoke",
@@ -94,11 +98,12 @@ const request = async (url, options) => {
     );
     if (updated.response.status !== 200)
       throw new Error("Update produk gagal.");
+    if (uploadEnabled) {
     const form = new FormData();
     form.append(
       "image",
       new Blob(
-        [fs.readFileSync(path.join(__dirname, "..", "img", "product01.png"))],
+        [fs.readFileSync(path.join(__dirname, "..", "public", "img", "product01.png"))],
         { type: "image/png" },
       ),
       "product01.png",
@@ -130,6 +135,7 @@ const request = async (url, options) => {
       attached.body?.product?.image !== uploaded.body.url
     )
       throw new Error("URL gambar ImageKit gagal disimpan.");
+    }
     const removed = await request(
       `/api/admin/products/${created.body.product.id}`,
       {
@@ -140,7 +146,7 @@ const request = async (url, options) => {
     if (removed.response.status !== 204)
       throw new Error("Delete produk gagal.");
     console.log(
-      "Smoke test lulus: health, katalog, proteksi admin, login, CRUD produk, dan upload.",
+      `Smoke test lulus: health, katalog, proteksi admin, login, CRUD produk${uploadEnabled ? ', upload' : ' (upload eksternal dilewati)'}.`,
     );
   } finally {
     child.kill();

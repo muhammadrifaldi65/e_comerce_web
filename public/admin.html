@@ -1,371 +1,42 @@
 <!doctype html>
 <html lang="id">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Dashboard Admin | Falstore</title>
-    <link rel="stylesheet" href="css/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/font-awesome.min.css" />
-    <link rel="stylesheet" href="css/style.css" />
-    <style>
-      body {
-        background: #f4f6f8;
-      }
-      .admin-shell {
-        padding: 32px 0;
-      }
-      .admin-card {
-        background: #fff;
-        padding: 24px;
-        margin-bottom: 24px;
-        border: 1px solid #e5e7eb;
-      }
-      .admin-card h3 {
-        margin-top: 0;
-      }
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-      }
-      .stat {
-        padding: 18px;
-        background: #15161d;
-        color: #fff;
-      }
-      .stat strong {
-        font-size: 24px;
-        display: block;
-      }
-      .admin-form .input,
-      .admin-form textarea {
-        margin-bottom: 12px;
-        width: 100%;
-      }
-      .admin-form textarea {
-        min-height: 100px;
-        padding: 10px;
-      }
-      .admin-actions button {
-        margin-right: 8px;
-      }
-      .product-row {
-        display: flex;
-        gap: 16px;
-        align-items: center;
-        border-top: 1px solid #eee;
-        padding: 14px 0;
-      }
-      .product-row img {
-        width: 70px;
-        height: 70px;
-        object-fit: contain;
-      }
-      .product-row .meta {
-        flex: 1;
-      }
-      .muted {
-        color: #6b7280;
-      }
-      .error {
-        color: #991b1b;
-        background: #fee2e2;
-        padding: 10px;
-      }
-      .success {
-        color: #166534;
-        background: #dcfce7;
-        padding: 10px;
-      }
-      @media (max-width: 767px) {
-        .stats {
-          grid-template-columns: repeat(2, 1fr);
-        }
-        .product-row {
-          align-items: flex-start;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <div id="header">
-        <div class="container">
-          <div class="header-logo">
-            <a class="logo" href="index.html"
-              ><img src="img/logo.png" alt="Falstore"
-            /></a>
-          </div>
-        </div>
-      </div>
-    </header>
-    <main class="admin-shell">
-      <div class="container">
-        <div class="admin-card">
-          <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              gap: 12px;
-            "
-          >
-            <div>
-              <h1>Dashboard Admin</h1>
-              <p class="muted" id="admin-user"></p>
-            </div>
-            <button class="primary-btn" id="logout">Keluar</button>
-          </div>
-        </div>
-        <div id="message"></div>
-        <section class="stats" id="stats"></section>
-        <section class="admin-card">
-          <h3>Tambah / Edit Produk</h3>
-          <form class="admin-form" id="product-form">
-            <input type="hidden" name="id" /><input
-              class="input"
-              name="name"
-              placeholder="Nama produk"
-              required
-            /><input
-              class="input"
-              name="slug"
-              placeholder="Slug (opsional)"
-            /><select class="input" name="category">
-              <option value="laptop">Laptop</option>
-              <option value="smartphone">Smartphone</option>
-              <option value="kamera">Kamera</option>
-              <option value="aksesori" selected>Aksesori</option></select
-            ><input
-              class="input"
-              type="number"
-              name="price"
-              min="0"
-              placeholder="Harga"
-              required
-            /><input
-              class="input"
-              type="number"
-              name="oldPrice"
-              min="0"
-              placeholder="Harga lama (opsional)"
-            /><input
-              class="input"
-              type="number"
-              name="stock"
-              min="0"
-              placeholder="Stok"
-              required
-            /><textarea
-              name="description"
-              placeholder="Deskripsi produk"
-            ></textarea
-            ><label
-              >Gambar produk
-              <input
-                type="file"
-                name="imageFile"
-                accept="image/jpeg,image/png,image/webp,image/gif" /></label
-            ><input type="hidden" name="image" /><label
-              style="display: block; margin: 12px 0"
-              ><input type="checkbox" name="isFeatured" /> Produk
-              unggulan</label
-            ><button class="primary-btn" type="submit">Simpan Produk</button
-            ><button class="primary-btn" type="button" id="reset-form">
-              Bersihkan
-            </button>
-          </form>
-        </section>
-        <section class="admin-card">
-          <h3>Daftar Produk</h3>
-          <div id="products"></div>
-        </section>
-      </div>
-    </main>
-    <script>
-      (function () {
-        "use strict";
-        const token = localStorage.getItem("falstore-token");
-        const user = JSON.parse(
-          localStorage.getItem("falstore-user") || "null",
-        );
-        const message = document.querySelector("#message");
-        const esc = (value) =>
-          String(value ?? "").replace(
-            /[&<>"']/g,
-            (c) =>
-              ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;",
-              })[c],
-          );
-        const money = (value) =>
-          "Rp" + new Intl.NumberFormat("id-ID").format(value);
-        const api = (url, opt = {}) =>
-          fetch(url, {
-            ...opt,
-            headers: {
-              ...(opt.body instanceof FormData
-                ? {}
-                : { "Content-Type": "application/json" }),
-              Authorization: "Bearer " + token,
-            },
-          }).then(async (r) => {
-            const p = await r.json().catch(() => ({}));
-            if (!r.ok) throw Error(p.error || "Permintaan gagal");
-            return p;
-          });
-        const show = (text, type = "error") => {
-          message.className = type;
-          message.textContent = text;
-        };
-        if (!token || !user || user.role !== "admin") {
-          location.href = "account.html";
-          return;
-        }
-        document.querySelector("#admin-user").textContent =
-          user.name + " · " + user.email;
-        async function load() {
-          const [stats, products] = await Promise.all([
-            api("/api/admin/stats"),
-            api("/api/admin/products"),
-          ]);
-          document.querySelector("#stats").innerHTML = [
-            ["Produk", stats.stats.products],
-            ["Customer", stats.stats.customers],
-            ["Pesanan", stats.stats.orders],
-            ["Pendapatan", money(stats.stats.revenue)],
-          ]
-            .map(
-              (x) =>
-                '<div class="stat"><span>' +
-                x[0] +
-                "</span><strong>" +
-                x[1] +
-                "</strong></div>",
-            )
-            .join("");
-          document.querySelector("#products").innerHTML = products.products
-            .length
-            ? products.products
-                .map(
-                  (p) =>
-                    '<div class="product-row"><img src="' +
-                    esc(p.image) +
-                    '" alt="' +
-                    esc(p.name) +
-                    '"><div class="meta"><strong>' +
-                    esc(p.name) +
-                    '</strong><div class="muted">' +
-                    esc(p.category) +
-                    " · " +
-                    money(p.price) +
-                    " · stok " +
-                    p.stock +
-                    '</div></div><div class="admin-actions"><button class="primary-btn edit" data-id="' +
-                    p.id +
-                    '">Edit</button><button class="primary-btn delete" data-id="' +
-                    p.id +
-                    '">Hapus</button></div></div>',
-                )
-                .join("")
-            : '<p class="muted">Belum ada produk.</p>';
-          document
-            .querySelectorAll(".edit")
-            .forEach(
-              (b) =>
-                (b.onclick = () =>
-                  edit(
-                    products.products.find(
-                      (p) => p.id === Number(b.dataset.id),
-                    ),
-                  )),
-            );
-          document.querySelectorAll(".delete").forEach(
-            (b) =>
-              (b.onclick = async () => {
-                if (!confirm("Hapus produk ini?")) return;
-                try {
-                  await api("/api/admin/products/" + b.dataset.id, {
-                    method: "DELETE",
-                  });
-                  show("Produk dihapus.", "success");
-                  load();
-                } catch (e) {
-                  show(e.message);
-                }
-              }),
-          );
-        }
-        function edit(p) {
-          const f = document.querySelector("#product-form");
-          for (const key of [
-            "id",
-            "name",
-            "slug",
-            "category",
-            "price",
-            "oldPrice",
-            "stock",
-            "description",
-            "image",
-          ])
-            f.elements[key].value = p[key] ?? "";
-          f.elements.isFeatured.checked = p.isFeatured;
-          window.scrollTo({
-            top: document.querySelector("#product-form").offsetTop - 20,
-            behavior: "smooth",
-          });
-        }
-        document.querySelector("#reset-form").onclick = () =>
-          document.querySelector("#product-form").reset();
-        document.querySelector("#logout").onclick = () => {
-          localStorage.removeItem("falstore-token");
-          localStorage.removeItem("falstore-user");
-          location.href = "account.html";
-        };
-        document.querySelector("#product-form").onsubmit = async (event) => {
-          event.preventDefault();
-          const f = event.currentTarget;
-          try {
-            let image = f.elements.image.value;
-            if (f.elements.imageFile.files[0]) {
-              const body = new FormData();
-              body.append("image", f.elements.imageFile.files[0]);
-              image = (
-                await api("/api/admin/uploads/image", { method: "POST", body })
-              ).url;
-            }
-            const body = {
-              name: f.elements.name.value,
-              slug: f.elements.slug.value,
-              category: f.elements.category.value,
-              price: Number(f.elements.price.value),
-              oldPrice: f.elements.oldPrice.value
-                ? Number(f.elements.oldPrice.value)
-                : null,
-              stock: Number(f.elements.stock.value),
-              description: f.elements.description.value,
-              image,
-              isFeatured: f.elements.isFeatured.checked,
-            };
-            const id = f.elements.id.value;
-            await api(
-              id ? "/api/admin/products/" + id : "/api/admin/products",
-              { method: id ? "PUT" : "POST", body: JSON.stringify(body) },
-            );
-            show("Produk berhasil disimpan.", "success");
-            f.reset();
-            await load();
-          } catch (e) {
-            show(e.message);
-          }
-        };
-        load().catch((e) => show(e.message));
-      })();
-    </script>
-  </body>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Admin | Falstore</title>
+  <link rel="stylesheet" href="css/bootstrap.min.css"><link rel="stylesheet" href="css/font-awesome.min.css"><link rel="stylesheet" href="css/style.css">
+  <style>
+    body{background:#f4f6f8}.admin-shell{padding:32px 0}.admin-card{background:#fff;padding:24px;margin-bottom:24px;border:1px solid #e5e7eb;min-width:0}.admin-card h2,.admin-card h3{margin-top:0}.admin-top,.admin-actions,.admin-nav,.filters,.pager{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.admin-top{justify-content:space-between}.admin-nav{margin-top:20px}.admin-nav a{padding:10px 14px;border-bottom:3px solid #d10024}.stats,.form-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat{padding:18px;background:#15161d;color:#fff;overflow-wrap:anywhere}.stat strong{display:block;font-size:24px}.admin-form label{display:block;width:100%;margin:0 0 14px}.admin-form .input,.admin-form textarea{display:block;width:100%;margin-top:6px}.admin-form textarea{min-height:100px;padding:10px}.admin-form input[type=checkbox]{margin-right:6px}.admin-form input[type=file]{max-width:100%;margin-top:6px}.wide{grid-column:1/-1}.muted{color:#5c616c}.error{color:#991b1b;background:#fee2e2;padding:12px}.success{color:#166534;background:#dcfce7;padding:12px}#message:empty{display:none}#message{position:sticky;top:0;z-index:10;margin-bottom:16px;overflow-wrap:anywhere}.table-scroll{overflow-x:auto;max-width:100%;margin:16px 0}.admin-table{width:100%;min-width:580px;border-collapse:collapse}.admin-table th,.admin-table td{padding:12px 10px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}.admin-table td{overflow-wrap:anywhere;max-width:320px}.admin-table img{width:56px;height:56px;object-fit:contain}.admin-table button,.pager button,.filters button{padding:10px 16px}.filters label{flex:1 1 170px;min-width:0}.filters .input{width:100%;margin-top:5px}.filters{margin:16px 0}.admin-shell button{min-height:44px;white-space:normal}.admin-shell button:disabled{opacity:.55;cursor:not-allowed}.admin-shell :focus-visible{outline:3px solid #d10024;outline-offset:3px}.admin-shell section{scroll-margin-top:60px}.admin-shell p,.admin-shell h1,.admin-shell h2,.admin-shell h3{overflow-wrap:anywhere}.order-detail{padding:18px;border:1px solid #ddd;margin-top:16px}.order-detail summary{cursor:pointer;font-weight:700;padding:10px 0}.pager{justify-content:flex-end}.image-preview{max-height:100px;max-width:100%;object-fit:contain;margin-bottom:12px}[hidden]{display:none!important}@media(max-width:767px){.admin-shell{padding:16px 0}.admin-card{padding:16px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{grid-template-columns:minmax(0,1fr)}.admin-top h1{font-size:26px}.admin-nav{gap:4px}.admin-nav a{padding:10px}.admin-actions>*{flex:1 1 auto}}@media(prefers-reduced-motion:reduce){.admin-shell *{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<header><div id="header"><div class="container"><div class="header-logo"><a class="logo" href="index.html"><img src="img/logo.png" alt="Falstore"></a></div></div></div></header>
+<main class="admin-shell"><div class="container">
+  <div class="admin-card"><div class="admin-top"><div><h1>Dashboard Admin</h1><p class="muted" id="admin-user"></p></div><button class="primary-btn" id="logout" type="button">Keluar</button></div><nav class="admin-nav" aria-label="Bagian administrasi"><a href="#dashboard">Dashboard</a><a href="#product-section">Produk</a><a href="#categories-section">Kategori</a><a href="#brands-section">Merek</a><a href="#promotions-section">Promo</a><a href="#orders-section">Pesanan</a><a href="#customers-section">Pelanggan</a></nav></div>
+  <div id="message" role="status" aria-live="polite" tabindex="-1"></div>
+  <section class="admin-card" id="dashboard" aria-labelledby="dashboard-title"><div class="admin-top"><h2 id="dashboard-title">Ringkasan toko</h2><button class="primary-btn" type="button" id="refresh-dashboard">Perbarui</button></div><div id="stats" class="stats" aria-live="polite"></div><h3>Status pesanan</h3><div id="order-counts"></div><h3>Stok menipis (≤ 5)</h3><div id="low-stock"></div></section>
+  <section class="admin-card" id="product-section"><h2>Tambah / Edit Produk</h2>
+    <form class="admin-form" id="product-form"><input type="hidden" name="id"><div class="form-grid">
+      <label>Nama produk<input class="input" name="name" required maxlength="200"></label><label>Slug (opsional)<input class="input" name="slug"></label>
+      <label>Kategori<select class="input" name="categoryId" required><option value="">Memuat kategori…</option></select></label><label>Merek<select class="input" name="brandId"><option value="">Tanpa merek</option></select></label>
+      <label>Harga dasar (Rp)<input class="input" type="number" name="price" min="1" step="1" required></label><label>Harga coret (Rp, opsional)<input class="input" type="number" name="oldPrice" min="1" step="1"></label>
+      <label>Stok<input class="input" type="number" name="stock" min="0" step="1" required></label><label>Gambar produk (maks. 4 MB)<input type="file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif"></label>
+      <label class="wide">Deskripsi<textarea name="description"></textarea></label></div><input type="hidden" name="image"><img class="image-preview" alt="Gambar produk saat ini" hidden><label><input type="checkbox" name="isFeatured">Produk unggulan</label><div class="admin-actions"><button class="primary-btn" type="submit">Simpan Produk</button><button class="primary-btn" type="reset">Bersihkan</button></div>
+    </form>
+    <h3 style="margin-top:28px">Daftar Produk</h3><form id="product-filter" class="filters"><label>Cari produk<input class="input" name="search" type="search"></label><label>Kategori<select class="input" name="categoryId"><option value="">Semua kategori</option></select></label><label>Merek<select class="input" name="brandId"><option value="">Semua merek</option></select></label><button class="primary-btn" type="submit">Cari</button></form><div id="products" aria-live="polite"></div><div id="products-pager" class="pager"></div>
+  </section>
+  <section class="admin-card" id="categories-section"><h2>Kategori</h2><form class="admin-form metadata-form" id="categories-form" data-resource="categories"><input type="hidden" name="id"><div class="form-grid"><label>Nama kategori<input class="input" name="name" required maxlength="100"></label><label>Slug (opsional)<input class="input" name="slug"></label></div><div class="admin-actions"><button class="primary-btn" type="submit">Simpan Kategori</button><button class="primary-btn" type="reset">Bersihkan</button></div></form><div id="categories" aria-live="polite"></div></section>
+  <section class="admin-card" id="brands-section"><h2>Merek</h2><form class="admin-form metadata-form" id="brands-form" data-resource="brands"><input type="hidden" name="id"><div class="form-grid"><label>Nama merek<input class="input" name="name" required maxlength="100"></label><label>Slug (opsional)<input class="input" name="slug"></label></div><div class="admin-actions"><button class="primary-btn" type="submit">Simpan Merek</button><button class="primary-btn" type="reset">Bersihkan</button></div></form><div id="brands" aria-live="polite"></div></section>
+  <section class="admin-card" id="promotions-section"><h2>Banner & Diskon Otomatis</h2><p>Diskon tidak ditumpuk; harga terendah dipilih server. Invoice lama tidak berubah. Jadwal memakai zona waktu perangkat: <strong id="timezone"></strong>.</p>
+    <form class="admin-form" id="promotion-form"><input type="hidden" name="id"><div class="form-grid">
+      <label>Judul<input class="input" name="title" required maxlength="200"></label><label>Tautan internal toko<input class="input" name="link" placeholder="/store.html" required value="/store.html"></label>
+      <label class="wide">Keterangan<textarea name="description"></textarea></label><label>Gambar banner (maks. 4 MB)<input type="file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif"></label><label>Urutan tampil<input class="input" type="number" name="sortOrder" step="1" min="0" value="0" required></label>
+      <label>Mulai (waktu lokal)<input class="input" type="datetime-local" name="startsAt" required></label><label>Selesai (waktu lokal)<input class="input" type="datetime-local" name="endsAt" required></label>
+      <label>Jenis target<select class="input" name="targetType"><option value="product">Produk</option><option value="category">Kategori</option></select></label><label>Target<select class="input" name="targetId" required><option value="">Pilih target</option></select></label>
+      <label>Jenis diskon<select class="input" name="discountType"><option value="percent">Persen (%)</option><option value="fixed">Nominal (Rp)</option></select></label><label>Nilai diskon<input class="input" type="number" name="discountValue" min="0.01" max="99.99" step="0.01" required></label>
+    </div><input type="hidden" name="image"><img class="image-preview" alt="Banner saat ini" hidden><label><input type="checkbox" name="enabled" checked>Aktifkan promo sesuai jadwal</label><div class="admin-actions"><button class="primary-btn" type="submit">Simpan Promo</button><button class="primary-btn" type="reset">Bersihkan</button></div></form><div id="promotions" aria-live="polite"></div>
+  </section>
+  <section class="admin-card" id="orders-section"><h2>Pesanan & Pembayaran QRIS</h2><p>Status lunas hanya berasal dari verifikasi pembayaran. Pengiriman mengikuti urutan proses.</p><form id="order-filter" class="filters"><label>Cari pesanan / pelanggan<input class="input" type="search" name="search"></label><label>Status<select class="input" name="status"><option value="">Semua status</option><option value="pending">Menunggu</option><option value="paid">Lunas</option><option value="processing">Diproses</option><option value="shipped">Dikirim</option><option value="completed">Selesai</option><option value="expired">Kedaluwarsa</option><option value="cancelled">Dibatalkan</option></select></label><button class="primary-btn" type="submit">Perbarui pesanan</button></form><div id="admin-orders" aria-live="polite"></div><div id="orders-pager" class="pager"></div></section>
+  <section class="admin-card" id="customers-section"><h2>Pelanggan</h2><form id="customer-filter" class="filters"><label>Cari nama / email<input class="input" name="search" type="search"></label><button class="primary-btn" type="submit">Cari</button></form><div id="customers" aria-live="polite"></div><div id="customers-pager" class="pager"></div><div id="customer-history" aria-live="polite"></div><div id="history-pager" class="pager"></div></section>
+</div></main><script src="js/admin.js" defer></script>
+</body>
 </html>

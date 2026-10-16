@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const {priceProduct} = require('../api/commerce');
+const product = {id:1,category_id:2,price:10001};
+const promo = {id:3,enabled:true,targetType:'product',targetId:1,discountType:'percent',discountValue:10,startsAt:'2026-10-16T00:00:00Z',endsAt:'2026-10-17T00:00:00Z'};
+const now = new Date(promo.startsAt);
+assert.deepEqual(priceProduct(product,[promo],now),{price:9001,basePrice:10001,promotionId:3,discountAmount:1000});
+assert.equal(priceProduct(product,[promo],new Date(promo.endsAt)).price,10001);
+assert.equal(priceProduct(product,[promo],new Date(now.getTime()-1)).price,10001);
+assert.equal(priceProduct(product,[{...promo,enabled:false}],now).price,10001);
+assert.equal(priceProduct(product,[{...promo,targetId:99}],now).price,10001);
+assert.equal(priceProduct(product,[{...promo,targetType:'category',targetId:2}],now).price,9001);
+assert.equal(priceProduct(product,[{...promo,id:4},promo],now).promotionId,3);
+assert.equal(priceProduct(product,[promo,{...promo,id:5,discountType:'fixed',discountValue:2000}],now).price,8001);
+assert.equal(priceProduct(product,[{...promo,discountType:'fixed',discountValue:20000}],now).price,1);
+assert.equal(product.price,10001);
+console.log('Commerce pricing boundaries passed.');

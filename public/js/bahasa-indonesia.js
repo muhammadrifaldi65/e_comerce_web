@@ -4,8 +4,6 @@
 
   const translations = {
     "All Categories": "Semua Kategori",
-    "Category 01": "Kategori 01",
-    "Category 02": "Kategori 02",
     "Search here": "Cari di sini",
     Search: "Cari",
     "My Account": "Akun Saya",
@@ -23,13 +21,6 @@
     "Hot Deals": "Promo Spesial",
     "Hot deals": "Promo Spesial",
     Categories: "Kategori",
-    Laptops: "Laptop",
-    Smartphones: "Smartphone",
-    Cameras: "Kamera",
-    Accessories: "Aksesori",
-    "Laptop Collection": "Koleksi Laptop",
-    "Accessories Collection": "Koleksi Aksesori",
-    "Cameras Collection": "Koleksi Kamera",
     Collection: "Koleksi",
     "Shop now": "Belanja sekarang",
     "New Products": "Produk Terbaru",
@@ -39,9 +30,6 @@
     "add to wishlist": "tambah ke daftar keinginan",
     "add to compare": "bandingkan produk",
     "add to cart": "tambah ke keranjang",
-    "Hot Deal This Week": "Promo Spesial Minggu Ini",
-    "hot deal this week": "promo spesial minggu ini",
-    "New Collection Up to 50% OFF": "Koleksi Baru Diskon Hingga 50%",
     Days: "Hari",
     Hours: "Jam",
     Mins: "Menit",
@@ -62,7 +50,6 @@
     Wishlist: "Daftar Keinginan",
     Price: "Harga",
     Brand: "Merek",
-    "Showing 20-100 products": "Menampilkan 20–100 produk",
     "Sort By:": "Urutkan:",
     "Show:": "Tampilkan:",
     "Regular Page": "Halaman Biasa",
@@ -162,10 +149,6 @@
       Beranda: "index.html",
       "Promo Spesial": "store.html?promo=1",
       Kategori: "store.html",
-      Laptop: "store.html?kategori=laptop",
-      Smartphone: "store.html?kategori=smartphone",
-      Kamera: "store.html?kategori=kamera",
-      Aksesori: "store.html?kategori=aksesori",
       "Daftar Keinginan": "wishlist.html",
       "Keranjang Anda": "cart.html",
       "Lihat Keranjang": "cart.html",
@@ -184,59 +167,6 @@
     document.querySelectorAll(".header-logo .logo").forEach(function (link) {
       link.href = "index.html";
     });
-    document
-      .querySelectorAll(".product-name a, .shop a.cta-btn, .add-to-cart-btn")
-      .forEach(function (link) {
-        if (link.tagName === "A") link.href = "product.html";
-      });
-
-    const catalog = {
-      "product01.png": "Laptop Pro 14 inci",
-      "product02.png": "Headphone Nirkabel",
-      "product03.png": "Laptop Ultra Slim",
-      "product04.png": "Tablet Android 10 inci",
-      "product05.png": "Kamera Mirrorless",
-      "product06.png": "Smartphone 5G",
-      "product07.png": "Laptop Gaming",
-      "product08.png": "Monitor LED 24 inci",
-      "product09.png": "Kamera DSLR",
-    };
-    function productNameFromImage(image) {
-      const source = image && image.getAttribute("src");
-      return Object.keys(catalog).find(function (file) {
-        return source && source.indexOf(file) !== -1;
-      });
-    }
-    document
-      .querySelectorAll(".product, .product-widget")
-      .forEach(function (card) {
-        const image = card.querySelector("img");
-        const file = productNameFromImage(image);
-        const heading = card.querySelector(".product-name");
-        if (file && heading) {
-          const productLink = heading.querySelector("a");
-          if (productLink) productLink.textContent = catalog[file];
-          else heading.textContent = catalog[file];
-          if (image) image.alt = catalog[file];
-        }
-      });
-    const detailImage = document.querySelector("#product-main-img img");
-    const detailFile = productNameFromImage(detailImage);
-    const detailName = document.querySelector(
-      ".product-details > .product-name",
-    );
-    if (detailFile && detailName) detailName.textContent = catalog[detailFile];
-    document
-      .querySelectorAll(".order-products .order-col")
-      .forEach(function (row, index) {
-        const item = row.querySelector("div");
-        if (item)
-          item.textContent =
-            index +
-            1 +
-            "x " +
-            (index ? catalog["product02.png"] : catalog["product01.png"]);
-      });
   }
 
   document.addEventListener("DOMContentLoaded", localize);

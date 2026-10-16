@@ -15,9 +15,9 @@
         })[char],
     );
   const productCard = (product) =>
-    `<div class="col-md-4 col-xs-6"><div class="product"><div class="product-img"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}"></div><div class="product-body"><p class="product-category">${escapeHtml(product.category)}</p><h3 class="product-name"><a href="product.html?id=${product.id}">${escapeHtml(product.name)}</a></h3><h4 class="product-price">${money(product.price)}${product.old_price ? ` <del class="product-old-price">${money(product.old_price)}</del>` : ""}</h4><div class="product-rating"><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star-o"></i></div><div class="product-btns"><button class="add-to-wishlist" data-product-id="${product.id}"><i class="fa fa-heart-o"></i><span class="tooltipp">simpan</span></button></div></div><div class="add-to-cart"><button class="add-to-cart-btn" data-product-id="${product.id}"><i class="fa fa-shopping-cart"></i> tambah ke keranjang</button></div></div></div>`;
+    `<div class="col-md-4 col-xs-6"><div class="product"><div class="product-img"><a href="product.html?id=${product.id}"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}"></a></div><div class="product-body"><p class="product-category">${escapeHtml(product.categoryName)}${product.brandName ? ' · '+escapeHtml(product.brandName) : ''}</p><h3 class="product-name"><a href="product.html?id=${product.id}">${escapeHtml(product.name)}</a></h3><h4 class="product-price">${money(product.price)}${Math.max(product.basePrice || 0,product.oldPrice || 0) > product.price ? ` <del class="product-old-price">${money(Math.max(product.basePrice || 0,product.oldPrice || 0))}</del>` : ''}</h4><div class="product-rating">${product.stock > 0 ? 'Tersedia' : 'Stok habis'}</div><div class="product-btns"><button class="add-to-wishlist" aria-label="Simpan ${escapeHtml(product.name)}" data-product-id="${product.id}"><i class="fa fa-heart-o"></i><span class="tooltipp">simpan</span></button></div></div><div class="add-to-cart"><button class="add-to-cart-btn" data-product-id="${product.id}" ${product.stock <= 0 ? 'disabled' : ''}><i class="fa fa-shopping-cart"></i> tambah ke keranjang</button></div></div></div>`;
   const widget = (product) =>
-    `<div><div class="product-widget"><div class="product-img"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}"></div><div class="product-body"><p class="product-category">${escapeHtml(product.category)}</p><h3 class="product-name"><a href="product.html?id=${product.id}">${escapeHtml(product.name)}</a></h3><h4 class="product-price">${money(product.price)}</h4></div></div></div>`;
+    `<div><div class="product-widget"><div class="product-img"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}"></div><div class="product-body"><p class="product-category">${escapeHtml(product.categoryName)}</p><h3 class="product-name"><a href="product.html?id=${product.id}">${escapeHtml(product.name)}</a></h3><h4 class="product-price">${money(product.price)}</h4></div></div></div>`;
   const bind = (products) => {
     document.querySelectorAll(".product .add-to-wishlist, .product .add-to-cart-btn").forEach(
       (button) =>
@@ -32,6 +32,7 @@
             name: product.name,
             price: product.price,
             image: product.image,
+            stock: product.stock,
           };
           if (button.classList.contains("add-to-wishlist"))
             window.FalstoreWishlistAdd?.(cartProduct);
@@ -41,6 +42,7 @@
   };
   const navigateWithFilters = (changes) => {
     const params = new URLSearchParams(location.search);
+    params.delete('offset');
     Object.entries(changes).forEach(([name, value]) => {
       if (name === "category") {
         params.delete("kategori");
@@ -73,15 +75,6 @@
         navigateWithFilters({ limit: limitSelect.value }),
       );
     }
-    const category = params.get("kategori") || params.get("category") || "";
-    document.querySelectorAll("#aside input[data-category]").forEach((input) => {
-      input.checked = input.dataset.category === category;
-      input.addEventListener("change", () => {
-        if (input.checked) navigateWithFilters({ category: input.dataset.category });
-        else if (category === input.dataset.category)
-          navigateWithFilters({ category: null });
-      });
-    });
     const minInput = document.querySelector("#price-min");
     const maxInput = document.querySelector("#price-max");
     const priceSlider = document.querySelector("#price-slider");
@@ -129,7 +122,7 @@
     const lists = document.querySelectorAll(".backend-popular-list");
     if (!sliders.length && !lists.length) return;
     const response = await fetch("/api/products?sort=popular&limit=9");
-    if (!response.ok) return;
+    if (!response.ok) throw Error('Produk populer gagal dimuat.');
     const { products } = await response.json();
     const markup = products.length
       ? products.map(widget).join("")
@@ -144,8 +137,8 @@
       if (window.jQuery && slider.dataset.nav && products.length)
         jQuery(slider).slick({
           infinite: true,
-          autoplay: true,
-          speed: 300,
+          autoplay: !matchMedia('(prefers-reduced-motion: reduce)').matches,
+          speed: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
           dots: false,
           arrows: true,
           appendArrows: slider.dataset.nav,
@@ -157,16 +150,19 @@
     const query = new URLSearchParams();
     const category = params.get("kategori") || params.get("category");
     if (category) query.set("category", category);
+    ['categoryId','brandId'].forEach(key => {if(params.has(key)) query.set(key,params.get(key));});
     if (params.get("q")) query.set("search", params.get("q"));
     if (params.has("minPrice")) query.set("minPrice", params.get("minPrice"));
     if (params.has("maxPrice")) query.set("maxPrice", params.get("maxPrice"));
     query.set("sort", params.get("sort") || "popular");
     query.set("limit", params.get("limit") || "20");
+    query.set('offset',params.get('offset') || '0');
     setupFilters();
+    document.querySelectorAll('#store > .row, #related-products').forEach(target=>{target.textContent='Memuat produk…';target.setAttribute('role','status');});
     try {
       const response = await fetch("/api/products?" + query.toString());
-      if (!response.ok) return;
-      const { products } = await response.json();
+      if (!response.ok) throw Error('Katalog belum dapat dimuat. Silakan muat ulang halaman.');
+      const { products, total, limit, offset } = await response.json();
       const store = document.querySelector("#store > .row");
       const related = document.querySelector("#related-products");
       if (related) {
@@ -186,22 +182,32 @@
         const summary = document.createElement("p");
         summary.className = "api-result-summary";
         summary.textContent = products.length
-          ? `${products.length} produk ditemukan${params.get("q") ? ` untuk "${params.get("q")}"` : ""}.`
+          ? `${total} produk ditemukan${params.get("q") ? ` untuk "${params.get("q")}"` : ""}.`
           : "Tidak ada produk yang cocok dengan pencarian Anda.";
         store.parentElement.insertBefore(summary, store);
         document.querySelectorAll(".store-qty").forEach(
           (element) =>
-            (element.textContent = `Menampilkan ${products.length} produk`),
+            (element.textContent = `Menampilkan ${products.length ? offset+1 : 0}–${offset+products.length} dari ${total} produk`),
         );
+        document.querySelectorAll('.store-pagination').forEach(list=>{
+          const page=Math.floor(offset/limit), pages=Math.ceil(total/limit);
+          const link=(index,label)=>{const next=new URLSearchParams(params);next.set('offset',String(index*limit));next.set('limit',String(limit));return `<li><a href="store.html?${escapeHtml(next.toString())}" aria-label="Halaman ${index+1}">${label}</a></li>`;};
+          let markup=page>0 ? link(page-1,'‹') : '';
+          const start=Math.max(0,Math.min(page-2,pages-5));
+          for(let index=start;index<Math.min(pages,start+5);index++)markup+=index===page ? `<li class="active" aria-current="page">${index+1}</li>` : link(index,index+1);
+          if(page+1<pages)markup+=link(page+1,'›');
+          list.innerHTML=markup;
+        });
       }
       document.querySelectorAll(".products-slick").forEach((slider) => {
         if (window.jQuery && jQuery(slider).hasClass("slick-initialized"))
           jQuery(slider).slick("unslick");
-        slider.innerHTML = products.slice(0, 8).map(productCard).join("");
-        if (window.jQuery && slider.dataset.nav)
+        slider.innerHTML = products.slice(0, 8).map(productCard).join('') || '<p>Produk belum tersedia.</p>';
+        if (window.jQuery && slider.dataset.nav && products.length)
           jQuery(slider).slick({
             slidesToShow: 4,
             slidesToScroll: 1,
+            speed: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
             arrows: true,
             appendArrows: slider.dataset.nav,
             responsive: [
@@ -211,11 +217,10 @@
           });
       });
       bind(products);
-      renderPopularWidgets().catch((error) =>
-        console.warn("Produk populer API tidak tersedia:", error.message),
-      );
+      renderPopularWidgets().catch(() => document.querySelectorAll('.backend-products-widget,.backend-popular-list').forEach(target => {target.textContent='Produk populer gagal dimuat.';}));
     } catch (error) {
       console.warn("Katalog API tidak tersedia:", error.message);
+      document.querySelectorAll('#store > .row, .products-slick, #related-products').forEach(target => { target.textContent = error.message; });
     }
   });
 })();

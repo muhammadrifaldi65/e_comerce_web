@@ -945,8 +945,12 @@ textarea.input {
   position: relative;
 }
 
-.product .product-img > img {
+.product .product-img img {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
 }
 
 .product .product-img .product-label {
@@ -2357,3 +2361,72 @@ textarea.input {
     font-size: 11px;
   }
 }
+
+/* Responsive refinements preserve the original Falstore theme. */
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+.product, .product-body, .product-details, .order-details, .order-col > div { min-width: 0; }
+.product-name, .product-category, .product-details, .order-col, .footer-links a { overflow-wrap: anywhere; }
+.product .product-img img { width: 100%; height: 220px; object-fit: contain; }
+.product-widget .product-img img { width: 60px; height: 60px; object-fit: contain; }
+.product .product-body .product-name { min-height: 34px; }
+.product .product-price { line-height: 1.6; }
+.product .add-to-cart { transition: transform .2s, padding .2s; }
+.promotion-image { max-height: 240px; object-fit: contain; display: block; margin: 0 auto 20px; }
+.main-nav, .section-tab-nav { overflow-wrap: anywhere; }
+.header-search form .input-select { min-width: 0; }
+.order-summary .order-col { display: flex; gap: 16px; justify-content: space-between; }
+.order-summary .order-col > div:first-child { flex: 1; }
+.order-summary .order-col > div:last-child { width: auto; flex-shrink: 0; text-align: right; }
+.cart-dropdown { max-width: calc(100vw - 30px); }
+button, .primary-btn, input, select { min-height: 44px; }
+button:disabled, [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #D10024; outline-offset: 3px; }
+.input-checkbox label { padding-top: 8px; padding-bottom: 8px; }
+.input-checkbox label span { top: 10px; }
+.input-checkbox label span:after { transition-property: opacity; }
+.input-radio label span:after { transition-property: transform; }
+@media (hover: none), (pointer: coarse) {
+  .product .add-to-cart { position: static; transform: none; padding: 15px; background: #1e1f29; }
+  .product:hover .add-to-cart { transform: none; }
+}
+@media (max-width: 991px) {
+  #header .row { display: flex; flex-wrap: wrap; align-items: center; }
+  #header .row > div { min-width: 0; }
+  #header .row > .col-md-3 { width: 50%; }
+  #header .row > .col-md-6 { width: 100%; order: 3; }
+  .header-ctn { float: right; padding-top: 0; }
+  #responsive-nav { max-width: 100vw; overflow-y: auto; }
+  .product .add-to-cart { position: static; transform: none; padding: 15px; }
+  .product:hover .add-to-cart { transform: none; }
+  .store-sort { display: flex; flex-wrap: wrap; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .header-logo .logo img { max-width: 135px; }
+  .header-ctn > div { margin-left: 8px; }
+  .header-ctn > div > a { width: auto; min-width: 44px; font-size: 11px; }
+  .header-search form { flex-wrap: wrap; }
+  .header-search form .input-select { flex-basis: 100%; width: 100%; border-radius: 4px 4px 0 0; border-right: 1px solid #e4e7ed; }
+  .header-search form .input { border-radius: 0 0 0 4px; }
+  .header-search form .search-btn { border-radius: 0 0 4px 0; font-size: 13px; }
+  .hot-deal .hot-deal-countdown { display: flex; gap: 6px; justify-content: center; }
+  .hot-deal .hot-deal-countdown > li { width: 66px; height: 66px; margin: 0; }
+  .hot-deal .hot-deal-countdown > li > div h3 { font-size: 20px; }
+  .order-details { padding: 15px; }
+  .order-summary .order-total { font-size: 20px; }
+  .newsletter form { display: flex; }
+  .newsletter form .input { width: 0; min-width: 0; flex: 1; }
+  .newsletter form .newsletter-btn { width: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (max-width: 991px) {
+  #navigation > .container > .main-nav { display: flex; flex-wrap: wrap; margin: 0; }
+  #navigation > .container > .main-nav > li > a { padding: 12px; }
+}
+.product-details .product-price .product-old-price { white-space: nowrap; }
+.cart-quantity { max-width: 100%; }
+input[type="checkbox"], input[type="radio"] { min-height: 0; }
+.order-products .order-col > div:last-child { white-space: nowrap; }
+.main-nav > li > a, .section-tab-nav > li > a { transition: color .2s; }

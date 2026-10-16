@@ -33,11 +33,38 @@
     });
   };
   migrateLegacyStorage();
-  const clearCart = () => write(cartKey, []);
+  const clearCart = () => {++quoteVersion;write(cartKey, []);quoteMessage='';updateBadges();};
   window.FalstoreStorage = {
     getCart: () => read(cartKey),
+    getScope: accountScope,
+    removePurchased: (items, scope) => {
+      if(scope!==accountScope()) return;
+      ++quoteVersion;
+      write(cartKey,read(cartKey).map(item=>({...item,qty:Math.max(0,item.qty-(items.find(p=>String(p.id)===String(item.id))?.quantity || 0))})).filter(item=>item.qty>0));
+      quoteMessage='';updateBadges();renderCart();
+    },
     clearCart,
   };
+  let quoteVersion = 0;
+  let quoteMessage = '';
+  async function quoteCart() {
+    const version = ++quoteVersion, scope = accountScope(), cart = read(cartKey), snapshot = JSON.stringify(cart);
+    if (!cart.length) {quoteMessage='';updateBadges();renderCart();return {items:[],total:0};}
+    quoteMessage='Memperbarui harga dan stok…'; updateBadges(); renderCart();
+    try {
+      const response=await fetch('/api/cart/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:cart.map(item=>({id:Number(item.id),quantity:Number(item.qty)}))})});
+      const data=await response.json();
+      if(!response.ok) throw Error(data.error || 'Harga dan stok gagal diperbarui. Periksa keranjang.');
+      if(version!==quoteVersion || scope!==accountScope() || snapshot!==JSON.stringify(read(cartKey))) return null;
+      write(cartKey,data.items.map(item=>({...item,id:String(item.id),qty:item.quantity})));
+      quoteMessage='';updateBadges();renderCart();return data;
+    } catch(error) {
+      if(version!==quoteVersion || scope!==accountScope() || snapshot!==JSON.stringify(read(cartKey))) return null;
+      quoteMessage=error.message;updateBadges();renderCart();throw error;
+    }
+  }
+  const refreshCart = () => quoteCart().catch(()=>{});
+  window.FalstoreStorage.quoteCart=quoteCart;
   const money = (amount) =>
     "Rp " + new Intl.NumberFormat("id-ID").format(Number(amount) || 0);
   const escapeHtml = (value) =>
@@ -57,6 +84,7 @@
     if (!element) {
       element = document.createElement("p");
       element.className = "falstore-notice";
+      element.setAttribute('role', 'status');
       document.body.append(element);
     }
     element.textContent = text;
@@ -66,30 +94,6 @@
       () => element.classList.remove("show"),
       2500,
     );
-  };
-  const productFrom = (button) => {
-    const box =
-      button.closest(".product, .product-widget, .product-details") || document;
-    const name =
-      (box.querySelector(".product-name") || {}).textContent ||
-      "Produk Falstore";
-    const priceText =
-      (box.querySelector(".product-price") || {}).textContent || "980";
-    const price =
-      Number((priceText.match(/[\d.]+/) || ["980"])[0].replace(/\./g, "")) ||
-      980000;
-    const imageElement =
-      box.querySelector("img") || document.querySelector("#product-main-img img");
-    const image = imageElement?.getAttribute("src") || "img/product01.png";
-    return {
-      id:
-        button.dataset.productId ||
-        name.trim().toLowerCase().replace(/\W+/g, "-") ||
-        "produk-falstore",
-      name: name.trim(),
-      price,
-      image,
-    };
   };
   const updateBadges = () => {
     const cart = read(cartKey),
@@ -114,21 +118,25 @@
           ? cart
               .map(
                 (item) =>
-                  `<div class="product-widget"><div class="product-img"><img src="${item.image}" alt="${item.name}"></div><div class="product-body"><h3 class="product-name">${item.name}</h3><h4 class="product-price"><span class="qty">${item.qty}x</span>${money(item.price)}</h4></div></div>`,
+                  `<div class="product-widget"><div class="product-img"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}"></div><div class="product-body"><h3 class="product-name">${escapeHtml(item.name)}</h3><h4 class="product-price"><span class="qty">${item.qty}x</span>${money(item.price)}</h4></div></div>`,
               )
               .join("")
           : '<p class="text-center">Keranjang masih kosong.</p>';
       if (summary)
         summary.innerHTML = `<small>${cart.reduce((n, item) => n + item.qty, 0)} produk dipilih</small><h5>SUBTOTAL: ${money(total)}</h5>`;
+      if(summary && quoteMessage){const status=document.createElement('p');status.setAttribute('role','status');status.textContent=quoteMessage;summary.append(status);}
     });
   };
-  const addCart = (product) => {
-    const cart = read(cartKey),
-      item = cart.find((p) => p.id === product.id);
-    if (item) item.qty += 1;
-    else cart.push({ ...product, qty: 1 });
+  const addCart = (product, quantity = 1) => {
+    quantity = Number(quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) return notice('Jumlah harus 1 sampai 99.');
+    const cart = read(cartKey), item = cart.find((p) => String(p.id) === String(product.id));
+    if ((item?.qty || 0) + quantity > Math.min(product.stock ?? 99, 99)) return notice('Jumlah melebihi stok tersedia.');
+    if (item) item.qty += quantity;
+    else cart.push({ ...product, id: String(product.id), qty: quantity });
     write(cartKey, cart);
     updateBadges();
+    refreshCart();
     notice(product.name + " ditambahkan ke keranjang");
   };
   const addWishlist = (product) => {
@@ -150,20 +158,29 @@
       ? cart
           .map(
             (item) =>
-              `<div class="product-widget"><div class="product-img"><img src="${item.image}" alt="${item.name}"></div><div class="product-body"><h3 class="product-name"><a href="product.html">${item.name}</a></h3><h4 class="product-price">${item.qty} × ${money(item.price)}</h4><button class="primary-btn falstore-remove" data-id="${item.id}">Hapus</button></div></div>`,
+              `<div class="product-widget"><div class="product-img"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}"></div><div class="product-body"><h3 class="product-name"><a href="product.html?id=${encodeURIComponent(item.id)}">${escapeHtml(item.name)}</a></h3><h4 class="product-price">${money(item.price)}</h4><label>Jumlah <input class="cart-quantity" aria-label="Jumlah ${escapeHtml(item.name)}" type="number" min="1" max="99" value="${escapeHtml(item.qty)}" data-id="${escapeHtml(item.id)}" style="width:65px;margin:8px"></label><button class="primary-btn falstore-remove" data-id="${escapeHtml(item.id)}">Hapus</button></div></div>`,
           )
           .join("")
       : '<p>Keranjang Anda masih kosong. <a href="store.html">Mulai belanja</a>.</p>';
     target.innerHTML = `<div class="col-md-8">${lines}</div><div class="col-md-4"><div class="order-summary"><div class="order-col"><div><strong>Total</strong></div><div><strong class="order-total">${money(total)}</strong></div></div>${cart.length ? '<a class="primary-btn order-submit" href="checkout.html">Lanjut ke Pembayaran</a>' : ""}</div></div>`;
+    if(quoteMessage){const status=document.createElement('p');status.setAttribute('role','status');status.textContent=quoteMessage;target.prepend(status);target.querySelector('.order-submit')?.setAttribute('aria-disabled','true');target.querySelector('.order-submit')?.removeAttribute('href');}
+    target.querySelectorAll('.cart-quantity').forEach(input => input.onchange = () => {
+      const qty = Number(input.value);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99) { notice('Jumlah harus 1 sampai 99.'); renderCart(); return; }
+      const items = read(cartKey);
+      items.find(item => String(item.id) === input.dataset.id).qty = qty;
+      write(cartKey, items); renderCart(); updateBadges(); refreshCart();
+    });
     target.querySelectorAll(".falstore-remove").forEach(
       (btn) =>
         (btn.onclick = () => {
           write(
             cartKey,
-            read(cartKey).filter((item) => item.id !== btn.dataset.id),
+            read(cartKey).filter((item) => String(item.id) !== btn.dataset.id),
           );
           renderCart();
           updateBadges();
+          refreshCart();
         }),
     );
   };
@@ -220,6 +237,8 @@
     params.delete("q");
     params.delete("kategori");
     params.delete("category");
+    params.delete('categoryId');
+    params.delete('offset');
     if (input?.value.trim()) params.set("q", input.value.trim());
     if (category) params.set("kategori", category);
     location.href =
@@ -237,79 +256,24 @@
   };
   const wireForms = () => {
     wireSearchForms();
-    document.querySelectorAll(".newsletter form").forEach((form) =>
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const email = form.querySelector('input[type="email"]');
-        if (email && email.checkValidity()) {
-          localStorage.setItem("falstore-newsletter", email.value);
-          email.value = "";
-          notice("Terima kasih, Anda sudah berlangganan.");
-        } else notice("Masukkan alamat email yang valid.");
-      }),
-    );
-    document.querySelectorAll(".order-submit").forEach((button) => {
-      if (button.closest("main"))
-        button.addEventListener("click", (event) => {
-          if (location.pathname.endsWith("checkout.html")) {
-            event.preventDefault();
-            const required = [
-              ...document.querySelectorAll(".billing-details input"),
-            ].filter((input) => input.type !== "checkbox");
-            if (required.some((input) => !input.value.trim()))
-              return notice("Lengkapi alamat dan kontak Anda terlebih dahulu.");
-            if (!document.querySelector('input[name="payment"]:checked'))
-              return notice("Pilih metode pembayaran terlebih dahulu.");
-            if (!document.querySelector("#terms:checked"))
-              return notice("Setujui syarat dan ketentuan terlebih dahulu.");
-            write("falstore-last-order", {
-              date: new Date().toISOString(),
-              items: read(cartKey),
-            });
-            write(cartKey, []);
-            updateBadges();
-            notice("Pesanan berhasil dibuat. Terima kasih!");
-            setTimeout(() => (location.href = "index.html"), 900);
-          }
-        });
+    document.querySelectorAll('.newsletter-follow a[href="#"], .footer-links a[href="#"]').forEach(link => { link.removeAttribute('href'); link.setAttribute('aria-disabled','true'); });
+    document.querySelectorAll('.newsletter form').forEach(form => {
+      const button = form.querySelector('button');
+      if (button) { button.disabled = true; button.textContent = 'Belum tersedia'; }
+      form.addEventListener('submit', event => event.preventDefault());
     });
-    document.querySelectorAll("main button.primary-btn").forEach((button) =>
-      button.addEventListener("click", (event) => {
-        if (button.closest("form") || button.classList.contains("order-submit"))
-          return;
-        const inputs = [
-          ...button.parentElement.querySelectorAll("input, textarea"),
-        ];
-        if (inputs.length && inputs.some((input) => !input.value.trim())) {
-          event.preventDefault();
-          notice("Mohon lengkapi semua kolom.");
-        } else if (inputs.length) {
-          event.preventDefault();
-          notice("Data berhasil dikirim. Terima kasih!");
-          inputs.forEach((input) => (input.value = ""));
-        }
-      }),
-    );
   };
   window.FalstoreCartAdd = addCart;
   window.FalstoreWishlistAdd = addWishlist;
 
   document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".add-to-cart-btn").forEach((button) =>
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        addCart(productFrom(button));
-      }),
-    );
-    document.querySelectorAll(".add-to-wishlist").forEach((button) =>
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        addWishlist(productFrom(button));
-      }),
-    );
     updateBadges();
     renderCart();
     renderWishlist();
     wireForms();
+    refreshCart();
+    document.querySelectorAll('.header-ctn .dropdown-toggle').forEach(button=>button.addEventListener('click',refreshCart));
+    window.addEventListener('focus',refreshCart);
+    setInterval(()=>{if(!document.hidden && (location.pathname.endsWith('cart.html') || document.querySelector('.header-ctn .dropdown.open')))refreshCart();},30000);
   });
 })();

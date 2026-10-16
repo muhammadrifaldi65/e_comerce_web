@@ -1,11 +1,13 @@
 (function ($) {
   "use strict";
 
-  // Mobile Nav toggle
-  $(".menu-toggle > a").on("click", function (e) {
-    e.preventDefault();
-    $("#responsive-nav").toggleClass("active");
-  });
+  const menu = $('.menu-toggle > a');
+  menu.attr({'aria-expanded':'false','aria-controls':'responsive-nav','role':'button'});
+  const setMenu = open => { $('#responsive-nav').toggleClass('active',open);menu.attr('aria-expanded',String(open)); };
+  menu.on('click', function(e){e.preventDefault();setMenu(!$('#responsive-nav').hasClass('active'));});
+  menu.on('keydown',function(e){if(e.key===' '){e.preventDefault();$(this).trigger('click');}});
+  $(document).on('keydown',function(e){if(e.key==='Escape' && $('#responsive-nav').hasClass('active')){setMenu(false);menu.trigger('focus');}});
+  $('#responsive-nav').on('click','a',()=>setMenu(false));
 
   // Fix cart dropdown from closing
   $(".cart-dropdown").on("click", function (e) {
@@ -22,9 +24,9 @@
     $this.slick({
       slidesToShow: 4,
       slidesToScroll: 1,
-      autoplay: true,
+      autoplay: !matchMedia('(prefers-reduced-motion: reduce)').matches,
       infinite: true,
-      speed: 300,
+      speed: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
       dots: false,
       arrows: true,
       appendArrows: $nav ? $nav : false,
@@ -54,8 +56,8 @@
 
     $this.slick({
       infinite: true,
-      autoplay: true,
-      speed: 300,
+      autoplay: !matchMedia('(prefers-reduced-motion: reduce)').matches,
+      speed: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
       dots: false,
       arrows: true,
       appendArrows: $nav ? $nav : false,
