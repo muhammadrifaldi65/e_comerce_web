@@ -184,7 +184,7 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
 File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
 ## Deployment ke Vercel
 
-Project mengekspor aplikasi Express langsung dari `server.js`, sedangkan `public/` berisi asset statis dan `vercel.json` mempertahankan konfigurasi deployment. Semua endpoint `/api/*` ditangani oleh Express Vercel.
+Project mengekspor aplikasi Express langsung dari `server.js`. `vercel.json` menetapkan preset `express` serta deteksi otomatis build/output agar backend tidak terdeploy sebagai website statis saja. Semua endpoint `/api/*` ditangani Express; `public/` disajikan sebagai asset statis oleh CDN Vercel. Lihat [Express on Vercel](https://vercel.com/docs/frameworks/backend/express).
 
 1. Push repository ke GitHub, lalu import repository tersebut di Vercel.
 2. Atau gunakan CLI:
@@ -192,6 +192,8 @@ Project mengekspor aplikasi Express langsung dari `server.js`, sedangkan `public
    ```bash
    npx vercel
    ```
+
+Root Directory Vercel harus menunjuk folder repository yang berisi `package.json`, `server.js`, dan `vercel.json`, **bukan `public/`**. Hapus override dashboard yang memaksa Output Directory ke `public`. Setelah perubahan konfigurasi atau environment, lakukan redeploy; deployment lama tidak berubah otomatis.
 
 Pada Vercel, isi environment variables berikut di Project Settings → Environment Variables:
 
@@ -209,6 +211,14 @@ CRON_SECRET
 `PORT` tidak wajib di Vercel karena server menggunakan port default saat dijalankan sebagai Function. Jangan upload `.env` ke Vercel atau repository. Neon menyimpan data secara persisten, sedangkan upload gambar menggunakan ImageKit sehingga tidak bergantung pada filesystem Vercel. Ukuran file upload dibatasi 4 MB karena Vercel memiliki batas payload request Function.
 
 Setelah deployment selesai, buka URL Vercel dan uji login admin, katalog, checkout, serta upload gambar.
+
+Periksa endpoint dan asset tanpa membuat pesanan atau mengubah produk:
+
+```bash
+node scripts/deployment-smoke.js https://NAMA-PROJECT.vercel.app
+```
+
+Tanpa argumen URL, perintah menjalankan Express lokal menggunakan `.env`. Pemeriksaan mencakup produk, promo, metadata katalog, halaman toko, favicon, dan seluruh URL asset CSS Slick. API lokal yang berhasil tetapi 404 di hosting mengindikasikan konfigurasi deployment/routing; periksa Root Directory dan preset Express. Respons 500 perlu pemeriksaan environment dan log Function. Favicon tersedia di `public/favicon.ico`; Slick menggunakan font dari `public/fonts/` tanpa ketergantungan `ajax-loader.gif` yang tidak tersedia.
 
 Atur scheduler hosting setiap menit untuk `GET /api/payments/reconcile` dengan header `Authorization: Bearer <CRON_SECRET>`. Endpoint memeriksa maksimal 10 invoice yang paling lama belum diperiksa per panggilan. Tanpa scheduler, pembayaran diperiksa ketika halaman pembayaran atau admin dibuka. Origin Axiom ditetapkan ke `https://portal.axiomcreative.xyz`; tidak ada opsi base URL alternatif.
 
