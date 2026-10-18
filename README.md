@@ -210,6 +210,8 @@ CRON_SECRET
 
 `PORT` tidak wajib di Vercel karena server menggunakan port default saat dijalankan sebagai Function. Jangan upload `.env` ke Vercel atau repository. Neon menyimpan data secara persisten, sedangkan upload gambar menggunakan ImageKit sehingga tidak bergantung pada filesystem Vercel. Ukuran file upload dibatasi 4 MB karena Vercel memiliki batas payload request Function.
 
+Upload tetap disimpan di ImageKit, tetapi respons upload dan gambar produk menggunakan `/uploads/<filename>` pada domain website (contoh `https://falstore.rifaldi.my.id/uploads/<filename>`). Backend mengambil gambar dari ImageKit tanpa redirect browser. URL ImageKit lama yang terdaftar di `image_uploads` dipetakan ke path lokal saat API produk dibaca; tidak perlu upload ulang. URL eksternal yang tidak terdaftar tetap tidak berubah.
+
 Setelah deployment selesai, buka URL Vercel dan uji login admin, katalog, checkout, serta upload gambar.
 
 Periksa endpoint dan asset tanpa membuat pesanan atau mengubah produk:

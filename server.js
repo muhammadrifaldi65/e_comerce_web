@@ -390,14 +390,15 @@ function publicUser(user) {
 }
 async function productImage(image) {
   const value = String(image || "").trim();
-  if (!value.startsWith("/uploads/")) return value || DEFAULT_PRODUCT_IMAGE;
-  const filename = path.basename(value);
-  if (!filename || value !== `/uploads/${filename}`)
-    return DEFAULT_PRODUCT_IMAGE;
+  if (value.startsWith("/uploads/")) {
+    const filename = path.basename(value);
+    return filename && value === `/uploads/${filename}` ? value : DEFAULT_PRODUCT_IMAGE;
+  }
+  if (!value.startsWith("https://")) return value || DEFAULT_PRODUCT_IMAGE;
   const uploaded = await db
-    .prepare("SELECT file_url FROM image_uploads WHERE public_path = ?")
+    .prepare("SELECT public_path FROM image_uploads WHERE file_url = ?")
     .get(value);
-  return uploaded?.file_url || DEFAULT_PRODUCT_IMAGE;
+  return uploaded?.public_path || value;
 }
 async function publicProduct(product) {
   const { sales_count, ...rest } = product;
@@ -720,7 +721,7 @@ app.post(
     try {
       const uploaded = await uploadToImageKit(req.file);
       res.status(201).json({
-        url: uploaded.imageKitUrl,
+        url: uploaded.publicPath,
         path: uploaded.publicPath,
         filename: uploaded.filename,
         size: uploaded.size,

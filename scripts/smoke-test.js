@@ -115,7 +115,7 @@ const request = async (url, options) => {
     });
     if (
       uploaded.response.status !== 201 ||
-      !uploaded.body?.url?.startsWith("https://") ||
+      uploaded.body?.url !== uploaded.body?.path ||
       !uploaded.body?.path?.startsWith("/uploads/")
     )
       throw new Error("Upload gambar ImageKit gagal.");
