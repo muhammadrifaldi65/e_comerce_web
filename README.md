@@ -220,6 +220,8 @@ node scripts/deployment-smoke.js https://NAMA-PROJECT.vercel.app
 
 Tanpa argumen URL, perintah menjalankan Express lokal menggunakan `.env`. Pemeriksaan mencakup produk, promo, metadata katalog, halaman toko, favicon, dan seluruh URL asset CSS Slick. API lokal yang berhasil tetapi 404 di hosting mengindikasikan konfigurasi deployment/routing; periksa Root Directory dan preset Express. Respons 500 perlu pemeriksaan environment dan log Function. Favicon tersedia di `public/favicon.ico`; Slick menggunakan font dari `public/fonts/` tanpa ketergantungan `ajax-loader.gif` yang tidak tersedia.
 
+Header pada layar hingga 991px menempatkan logo, baris aksi, dan pencarian secara terpisah agar wishlist/keranjang/menu tidak menumpuk. Pemeriksaan responsif: buka beranda, toko, keranjang, dan checkout pada lebar 320, 375, 768, dan 1440px; pastikan tidak ada scroll horizontal. Pada ponsel, dropdown keranjang dibatasi lebar viewport.
+
 Atur scheduler hosting setiap menit untuk `GET /api/payments/reconcile` dengan header `Authorization: Bearer <CRON_SECRET>`. Endpoint memeriksa maksimal 10 invoice yang paling lama belum diperiksa per panggilan. Tanpa scheduler, pembayaran diperiksa ketika halaman pembayaran atau admin dibuka. Origin Axiom ditetapkan ke `https://portal.axiomcreative.xyz`; tidak ada opsi base URL alternatif.
 
 
