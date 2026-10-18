@@ -184,7 +184,7 @@ Konfigurasi aplikasi disimpan di file `.env` dan tidak boleh di-upload ke reposi
 File `.env.example` boleh di-upload karena hanya berisi nama variable dan contoh nilai. File `.env` sudah masuk `.gitignore`.
 ## Deployment ke Vercel
 
-Project mengekspor aplikasi Express langsung dari `server.js`. `vercel.json` menetapkan preset `express` serta deteksi otomatis build/output agar backend tidak terdeploy sebagai website statis saja. Semua endpoint `/api/*` ditangani Express; `public/` disajikan sebagai asset statis oleh CDN Vercel. Lihat [Express on Vercel](https://vercel.com/docs/frameworks/backend/express).
+Project mengekspor aplikasi Express dari `server.js`. `vercel.json` memakai build eksplisit `@vercel/node` untuk satu backend dan `@vercel/static` untuk `public/**`. Route `/api/*` dan `/uploads/*` diarahkan ke backend; `/` ke `public/index.html`; URL lainnya ke asset di `public/`. Modul internal `api/commerce.js` dan `api/payments.js` tidak dibangun sebagai Function terpisah. Konfigurasi `builds` ini mengesampingkan deteksi framework/build dashboard; jangan gabungkan dengan konfigurasi preset otomatis.
 
 1. Push repository ke GitHub, lalu import repository tersebut di Vercel.
 2. Atau gunakan CLI:
@@ -218,7 +218,7 @@ Periksa endpoint dan asset tanpa membuat pesanan atau mengubah produk:
 node scripts/deployment-smoke.js https://NAMA-PROJECT.vercel.app
 ```
 
-Tanpa argumen URL, perintah menjalankan Express lokal menggunakan `.env`. Pemeriksaan mencakup produk, promo, metadata katalog, halaman toko, favicon, dan seluruh URL asset CSS Slick. API lokal yang berhasil tetapi 404 di hosting mengindikasikan konfigurasi deployment/routing; periksa Root Directory dan preset Express. Respons 500 perlu pemeriksaan environment dan log Function. Favicon tersedia di `public/favicon.ico`; Slick menggunakan font dari `public/fonts/` tanpa ketergantungan `ajax-loader.gif` yang tidak tersedia.
+Tanpa argumen URL, perintah menjalankan Express lokal menggunakan `.env`. Pemeriksaan mencakup produk, promo, metadata katalog, halaman toko, favicon, dan seluruh URL asset CSS Slick. Pemeriksaan lokal tidak membuktikan routing Vercel; jalankan kembali dengan URL production setelah commit terbaru terdeploy. API lokal yang berhasil tetapi 404 di hosting perlu pemeriksaan Root Directory, commit deployment, dan routes `vercel.json`. Respons 500 perlu pemeriksaan environment dan log Function. Favicon tersedia di `public/favicon.ico`; Slick menggunakan font dari `public/fonts/` tanpa ketergantungan `ajax-loader.gif` yang tidak tersedia.
 
 Header pada layar hingga 991px menempatkan logo, baris aksi, dan pencarian secara terpisah agar wishlist/keranjang/menu tidak menumpuk. Pemeriksaan responsif: buka beranda, toko, keranjang, dan checkout pada lebar 320, 375, 768, dan 1440px; pastikan tidak ada scroll horizontal. Pada ponsel, dropdown keranjang dibatasi lebar viewport.
 
