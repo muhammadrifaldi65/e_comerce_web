@@ -2425,11 +2425,32 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 @media (max-width: 991px) {
-  #navigation > .container > .main-nav { display: flex; flex-wrap: wrap; margin: 0; }
-  #navigation > .container > .main-nav > li > a { padding: 12px; }
+  #navigation #responsive-nav .main-nav { display: block; margin: 0; }
+  #navigation #responsive-nav .main-nav > li { display: block; width: 100%; }
+  #navigation #responsive-nav .main-nav > li > a { display: block; padding: 14px 18px; }
 }
 .product-details .product-price .product-old-price { white-space: nowrap; }
 .cart-quantity { max-width: 100%; }
 input[type="checkbox"], input[type="radio"] { min-height: 0; }
 .order-products .order-col > div:last-child { white-space: nowrap; }
 .main-nav > li > a, .section-tab-nav > li > a { transition: color .2s; }
+/* Keep the red-black storefront while making cards and controls usable on phones. */
+@media (max-width: 767px) {
+  .section { padding-top: 22px; padding-bottom: 22px; }
+  .section-title { margin-bottom: 16px; }
+  .product { margin: 10px 0 18px; border: 1px solid #e4e7ed; }
+  .product .product-img img { height: 180px; }
+  .product .product-body { padding: 14px; }
+  .product .add-to-cart { position: static; transform: none; padding: 10px 14px 14px; background: #1e1f29; }
+  .product:hover .add-to-cart { transform: none; }
+  .product .add-to-cart .add-to-cart-btn { width: 100%; }
+  .store-sort, .store-filter { max-width: 100%; }
+  .order-summary .order-col > div:last-child { white-space: normal; }
+}
+@media (min-width: 400px) and (max-width: 480px) {
+  .products-tabs .col-xs-6, #store .col-xs-6 { width: 50%; }
+}
+@media (max-width: 399px) {
+  .header-ctn { gap: 4px; }
+  .product .product-img img { height: 200px; }
+}

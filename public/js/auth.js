@@ -81,6 +81,13 @@
           const {orders} = await FalstoreAuth.request('/api/orders');
           const labels = {pending:'Menunggu pembayaran',paid:'Lunas',processing:'Diproses',shipped:'Dikirim',completed:'Selesai',expired:'Kedaluwarsa',unknown:'Perlu pemeriksaan'};
           target.innerHTML = orders.length ? orders.map(order => `<article style="border-top:1px solid #ddd;padding:20px 0"><h4>Pesanan #${esc(order.orderId)} — ${esc(labels[order.status] || order.status)}</h4><p>${esc(new Date(order.createdAt).toLocaleString('id-ID'))} | Rp ${new Intl.NumberFormat('id-ID').format(order.total)}</p><ul>${order.items.map(p => `<li>${esc(p.quantity)} × ${esc(p.name)}</li>`).join('')}</ul><p>Pembayaran: ${esc(labels[order.payment?.status] || order.payment?.status || 'Belum tersedia')}</p><a class="primary-btn" href="checkout.html?order=${encodeURIComponent(order.orderId)}">Detail pembayaran</a></article>`).join('') : '<p>Belum ada pesanan. <a href="store.html">Mulai belanja</a>.</p>';
+          target.querySelectorAll('article').forEach((article, index) => {
+            const order = orders[index];
+            if (!order.carrier && !order.trackingNumber) return;
+            const shipping = document.createElement('p');
+            shipping.textContent = `Kurir: ${order.carrier || 'Belum tersedia'} · Resi: ${order.trackingNumber || 'Belum tersedia'}`;
+            article.querySelector('a').before(shipping);
+          });
         } catch (error) { target.textContent = error.message; }
         finally { refresh.disabled = false; }
       };

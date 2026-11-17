@@ -45,6 +45,7 @@ async function integration() {
       if (String(target).endsWith('/create-qris')) {
         calls++;
         if (mode === 'timeout') throw new Error('Synthetic timeout');
+        if (mode === 'rejected') return Response.json({success:false,message:'Synthetic gateway rejection'},{status:401});
         const amount = JSON.parse(options.body).amount;
         const data = {qris_id:`test-${calls}`,trx_id:`trx-${calls}`,amount,status:'PENDING',expires_at:new Date(Date.now()+900000).toISOString()};
         invoices.set(data.qris_id,data);
@@ -100,6 +101,10 @@ async function integration() {
     assert.equal(uncertain.body.payment.status,'unknown');
     await request('/api/orders','POST',uncertainBody);
     assert.equal(calls,2);
+    mode = 'rejected';
+    const rejected = await request('/api/orders','POST',{...body,requestId:crypto.randomUUID(),items:[{id:2,quantity:1}]});
+    assert.equal(rejected.status,502);
+    assert.equal(rejected.body.error,'Pembuatan QRIS ditolak oleh provider.');
     mode = 'pending';
     await app.db.prepare('UPDATE products SET stock = 1 WHERE id = 2').run();
     const races = await Promise.all([1,2].map(() => request('/api/orders','POST',{...body,requestId:crypto.randomUUID(),items:[{id:2,quantity:1}]})));

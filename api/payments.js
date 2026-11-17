@@ -158,6 +158,7 @@ function install(app, db, auth, adminOnly) {
         await db.prepare("UPDATE orders SET trx_id = ?, payment_status = 'pending', payment_expires_at = ?, payment_fee_amount = ?, payment_net_amount = ? WHERE id = ? AND payment_status = 'unknown' AND qris_id = ?").run(data.trx_id,data.expires_at,...feeSnapshot(data),order.id,data.qris_id);
       }
     }
+    if (!response.ok || response.result?.success !== true) throw fail('Pembuatan QRIS ditolak oleh provider.',502);
     res.status(201).json(await present(await getOrder(order.id)));
   }));
   app.get('/api/orders',auth(),route(async (req,res) => {

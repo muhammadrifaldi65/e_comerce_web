@@ -64,6 +64,11 @@
       button.hidden=true; document.querySelector('.payment-method').hidden=true; document.querySelector('#terms').closest('.input-checkbox').hidden=true;
       button.style.display='none';
       panel.innerHTML=`<hr><h3>Pesanan #${esc(orderId)}</h3><p><strong>${esc(labels[paid ? order.status : expired ? 'expired' : p.status] || order.status)}</strong></p><h3>${money(order.total)}</h3>${!paid && !expired && p.status==='pending' && (p.qrImageUrl || p.qrUrl) ? `<img id="payment-qr" src="${esc(p.qrImageUrl || p.qrUrl)}" alt="Kode QRIS pesanan ${esc(orderId)}" style="display:block;max-width:100%;width:280px;margin:16px auto"><p>Pindai menggunakan aplikasi bank atau dompet digital.</p>` : ''}${p.expiresAt ? `<p>Berlaku sampai ${esc(new Date(p.expiresAt).toLocaleString('id-ID'))}</p>` : ''}${!paid && (expired || p.status==='unknown') ? '<p>Jangan membayar ulang atau membuat pesanan pengganti sebelum status dipastikan. Pembayaran terlambat perlu diperiksa; stok tidak dilepas otomatis.</p>' : ''}<p id="payment-check-message" role="status"></p>${!paid ? '<button type="button" class="primary-btn" id="check-payment">Periksa status</button>' : ''}<p style="margin-top:15px"><a href="account.html">Lihat riwayat pesanan</a></p>`;
+      if (order.carrier || order.trackingNumber) {
+        const shipping = document.createElement('p');
+        shipping.textContent = `Kurir: ${order.carrier || 'Belum tersedia'} · Resi: ${order.trackingNumber || 'Belum tersedia'}`;
+        panel.querySelector('h3').after(shipping);
+      }
       const image=panel.querySelector('#payment-qr'); if(image) image.onerror=()=>{image.hidden=true;panel.querySelector('#payment-check-message').textContent='Gambar QRIS tidak tersedia atau sudah tidak aktif. Periksa status pesanan.';};
       panel.querySelector('#check-payment')?.addEventListener('click',poll);
       if (!paymentShown) {

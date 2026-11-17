@@ -50,6 +50,7 @@ Proyek ini dirancang untuk menunjukkan penerapan:
 - Menggunakan antarmuka berbahasa Indonesia.
 - Gambar katalog tetap di dalam kartu, termasuk gambar yang dibungkus tautan produk; desain asli dipertahankan.
 - Sesudah checkout atau membuka kembali pesanan, halaman langsung memfokuskan panel pembayaran QRIS; tombol pembuatan pesanan disembunyikan.
+- Kurir dan nomor resi tampil di riwayat pesanan akun serta detail pembayaran ketika tersedia; pesanan yang belum memiliki data pengiriman tidak menampilkan bagian tersebut.
 
 ### Fitur admin
 
